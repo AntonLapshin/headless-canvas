@@ -6,6 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Peer: React >= 18](https://img.shields.io/badge/react-%3E%3D18-blue)](package.json)
 [![Zero runtime dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
+[![Live demo](https://img.shields.io/badge/demo-storybook-ff4785)](https://antonlapshin.github.io/headless-canvas/)
+
+**Interactive demo (Storybook): [https://antonlapshin.github.io/headless-canvas/](https://antonlapshin.github.io/headless-canvas/)** — drag, resize, scale and rotate the items to feel the interaction model.
 
 `headless-canvas` gives you a complete drag-and-drop interaction engine with **zero visual styles**. It renders no handles, no outlines, no cursors, no colors — it renders structure and data attributes, and your CSS does the rest. Your DOM stays yours.
 
