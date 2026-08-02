@@ -1,0 +1,32 @@
+/* =====================================================================
+ * headless-canvas — THE single structural stylesheet.
+ *
+ * Structural layout ONLY. Zero visual opinion: no colors, no borders, no
+ * shadows, no cursors. Everything visual is owned by the consumer and
+ * driven by the data-attribute contract (data-item-id, data-selected,
+ * data-hovered, data-locked, data-disabled, data-feature, data-direction).
+ * ===================================================================== */
+
+.canvas {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.item {
+  position: absolute;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.feature {
+  position: absolute;
+  pointer-events: none; /* hit-testing is geometric, not DOM */
+}

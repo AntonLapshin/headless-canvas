@@ -1,0 +1,98 @@
+{
+  "name": "headless-canvas",
+  "version": "0.2.0",
+  "description": "Headless, declarative React canvas for placing, moving, resizing, scaling and rotating positioned elements — zero visual styles, one pointer listener, geometric hit-testing. Your DOM stays yours.",
+  "license": "MIT",
+  "author": "Anton Lapshin",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css",
+    "**/*.scss"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "canvas",
+    "headless",
+    "react",
+    "drag",
+    "resize",
+    "rotate",
+    "declarative",
+    "editor",
+    "designer",
+    "layout"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AntonLapshin/headless-canvas"
+  },
+  "scripts": {
+    "dev": "storybook dev -p 6006",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "prepublishOnly": "npm run build && npm run test && npm run lint"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@microsoft/api-extractor": "^7.58.12",
+    "@storybook/addon-a11y": "^8.6.18",
+    "@storybook/addon-essentials": "^8.6.14",
+    "@storybook/addon-interactions": "^8.6.14",
+    "@storybook/react-vite": "^8.6.18",
+    "@storybook/test": "^8.6.18",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.20.1",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.9.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sass": "^1.102.0",
+    "storybook": "^8.6.18",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^6.4.3",
+    "vite-plugin-css-injected-by-js": "^4.0.1",
+    "vite-plugin-dts": "^5.0.3",
+    "vitest": "^3.2.7"
+  }
+}

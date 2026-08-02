@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+storybook-static/
+coverage/
+*.tsbuildinfo
+
+# local pack artifacts
+*.tgz
+
+# misc
+.DS_Store
+*.local
+npm-debug.log*
+*.log
+.idea/
+.vscode/
