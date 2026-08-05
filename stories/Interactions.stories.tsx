@@ -38,7 +38,7 @@ function MoveDemo(props: { snapToGrid?: number; constrain?: boolean; locked?: bo
     >
       <StyledItem id="movable" x={120} y={90} width={220} height={110} features={styledFeatures}>
         <div style={boxStyle}>
-          <strong>Grab anywhere to move</strong>
+          <strong>Grab the move handle (top-left)</strong>
         </div>
       </StyledItem>
       <StyledItem id="locked" x={340} y={230} width={160} height={80} locked features={<MoveHandleStyled />}>
@@ -76,15 +76,15 @@ export const Move: MoveStory = {
     docs: {
       description: {
         story:
-          'MoveHandle\'s hit region covers the whole item body — grab anywhere to drag. Locked items stay selectable but never move. Items can never leave the canvas: the canvas edges are the default bounds, and the `constraints` prop tightens or extends individual edges.',
+          'MoveHandle’s hit region is a small square at the item’s top-left corner (where the styled kit draws the move glyph) — drag by the handle, never by the body, so content inside items stays interactive. Locked items stay selectable but never move. Items can never leave the canvas: the canvas edges are the default bounds, and the `constraints` prop tightens or extends individual edges.',
       },
     },
   },
   play: async () => {
     const handle = await getHandle();
     const before = handle.getItems().find((i) => i.id === 'movable')!;
-    // Grab the item body (the MoveHandle hit region covers it) and drag +60/+40.
-    dragTo({ x: 180, y: 130 }, { x: 240, y: 170 });
+    // Grab the move handle (top-left corner of the item at (120, 90)) and drag +60/+40.
+    dragTo({ x: 120, y: 90 }, { x: 180, y: 130 });
     const after = handle.getItems().find((i) => i.id === 'movable')!;
     expect(after.x).toBe(before.x + 60);
     expect(after.y).toBe(before.y + 40);
@@ -331,7 +331,7 @@ export const Measure: StoryObj<typeof moveMeta> = {
     docs: {
       description: {
         story:
-          'The three readout features, all headless: EdgeLines draws a measurement line from each item edge toward the nearest target (another item or the canvas edge) with the pixel distance in the middle while moving; ResizeValue shows live width × height while resizing; RotateValue shows the live angle while rotating. Appearance (line color/width, number pills) comes entirely from the styled kit CSS.',
+          'The three readout features, all headless: EdgeLines draws a measurement line from each item edge straight to the corresponding canvas edge (lines never stop at other items) with the pixel distance in the middle while moving; ResizeValue shows live width × height while resizing; RotateValue shows the live angle while rotating. Appearance (line color/width, number pills) comes entirely from the styled kit CSS.',
       },
     },
   },
@@ -341,10 +341,10 @@ export const Measure: StoryObj<typeof moveMeta> = {
     const rect = root.getBoundingClientRect();
     const pt = (x: number, y: number) => ({ clientX: rect.left + x, clientY: rect.top + y });
 
-    // Move: pointer down on the item body (move handle covers it), then move —
-    // the edge-lines readout must appear mid-drag with 4 measurements.
-    fireEvent.pointerDown(root, { ...pt(200, 140), pointerId: 1, buttons: 1 });
-    fireEvent.pointerMove(root, { ...pt(230, 170), pointerId: 1, buttons: 1 });
+    // Move: pointer down on the move handle (top-left corner at (140, 90)),
+    // then move — the edge-lines readout must appear mid-drag with 4 measurements.
+    fireEvent.pointerDown(root, { ...pt(140, 90), pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { ...pt(170, 120), pointerId: 1, buttons: 1 });
     await flush();
     const lines = document.querySelector('[data-feature="edge-lines"]');
     expect(lines).toBeTruthy();

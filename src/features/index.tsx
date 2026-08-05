@@ -93,19 +93,21 @@ function FeatureAnchor(props: FeatureAnchorProps) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Move affordance. Hit region = the item's whole body, so the item can be
- * grabbed anywhere to drag it.
+ * Move affordance. Hit region = a small square around the handle anchor
+ * (the item's top-left corner, where the styled kit draws the move glyph).
+ * The item body is deliberately NOT a move region: body clicks pass through
+ * to the item's content, so buttons, selects and links inside an item work
+ * like any other DOM.
  */
 export const MoveHandle = memo(function MoveHandle({ cursor = 'move' }: MoveHandleProps) {
-  const itemId = useItemId();
   const ctx = useInternalCanvas();
   const { geometry } = useItem();
   const point = { x: 0, y: 0 };
 
   const hitRect = useCallback((): Rect => {
-    const g = ctx.getItem(itemId);
-    return { x: 0, y: 0, width: g?.width ?? 0, height: g?.height ?? 0 };
-  }, [ctx, itemId]);
+    // Anchor sits at the item-local origin (top-left); grab square around it.
+    return { x: -HIT_HALF, y: -HIT_HALF, width: HIT_HALF * 2, height: HIT_HALF * 2 };
+  }, []);
 
   return (
     <FeatureAnchor
@@ -204,10 +206,11 @@ export const RotateHandle = memo(function RotateHandle({
 /* ------------------------------------------------------------------ */
 
 /**
- * Edge measurement lines: while the item is being MOVED, draws a tiny line
- * from each edge of the item rectangle toward the nearest target edge (other
- * item or canvas bound), with the pixel distance in the middle of each line.
- * Renders nothing when idle. Headless: structure + `data-edge-line` /
+ * Edge measurement lines: while the item is being MOVED, draws a line from
+ * each edge of the item rectangle straight to the corresponding canvas edge,
+ * with the pixel distance in the middle of each line. Lines never stop at
+ * other items — the measurement target is always the canvas bound. Renders
+ * nothing when idle. Headless: structure + `data-edge-line` /
  * `data-edge-value`; line color/width and number appearance are consumer CSS.
  */
 export const EdgeLines = memo(function EdgeLines() {
@@ -221,14 +224,13 @@ export const EdgeLines = memo(function EdgeLines() {
 
   const edges = useMemo(() => {
     if (!moving || w <= 0 || h <= 0) return [];
-    const others = ctx.store.getAll().filter((g) => g.id !== itemId);
-    return measureEdges(geometry, others, {
+    return measureEdges(geometry, {
       minX: ctx.constraints?.minX ?? 0,
       minY: ctx.constraints?.minY ?? 0,
       maxX: ctx.constraints?.maxX ?? ctx.width,
       maxY: ctx.constraints?.maxY ?? ctx.height,
     });
-  }, [moving, geometry, itemId, ctx, w, h]);
+  }, [moving, geometry, ctx, w, h]);
 
   if (!moving || edges.length === 0) return null;
 
@@ -276,7 +278,9 @@ export const RotateValue = memo(function RotateValue() {
       style={{ left: w / 2, top: -44 }}
       aria-hidden="true"
     >
-      <span className={styles.edgeValue}>{deg}°</span>
+      <span className={styles.edgeValue} data-edge-value>
+        {deg}°
+      </span>
     </div>
   );
 });
@@ -305,7 +309,7 @@ export const ResizeValue = memo(function ResizeValue() {
       style={{ left: p.x + dx, top: p.y + dy }}
       aria-hidden="true"
     >
-      <span className={styles.edgeValue}>
+      <span className={styles.edgeValue} data-edge-value>
         {w} × {h}
       </span>
     </div>

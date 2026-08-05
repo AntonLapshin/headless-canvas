@@ -2,7 +2,23 @@
 
 All notable changes to **headless-canvas** are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.0] — 2026-08-05
+
+### Changed
+
+- **Flat white canvas (styled kit)** — the demo canvas is now a white stage with a gray border, no rounded corners and no drop shadow.
+- **Hover and selection share one bluish color** — the kit's accent and hover are the same blue (light `#3b82f6`, dark `#60a5fa`), applied to the rings and the handles.
+- **`MoveHandle` is a corner handle, not a body grab** — its hit region shrank from the whole item body to a small square around the anchor (the item's top-left corner, where the styled kit draws the move glyph). Body clicks are ignored by the canvas and pass through to the item's content, so buttons, selects and links inside items behave like any other DOM.
+- **Selected item sits on top** — while selected, an item renders at `max effective z + 1` and wins hit-testing over every other item regardless of mount order. The bump is transient: the store's `zIndex` is never mutated, so `getItems()`/`onItemsChange` stay clean.
+- **`measureEdges` simplified** — signature is now `measureEdges(item, bounds)`: each edge line runs straight from the item edge to the corresponding canvas edge and never stops at other items (breaking change for direct importers of `measureEdges`; `EdgeLines` was the only consumer).
+- **Rotate/Resize values reuse the edge-value pill** — their value span now carries `data-edge-value`, so they render exactly like the EdgeLines numbers (white on dark pill, same radius/shadow).
+- Example cards in the stories no longer use rounded borders.
+
+### Fixed
+
+- `RotateValue`/`ResizeValue` pills were tiny rounded blobs with barely visible white text: the container collapsed around its absolutely-positioned span. The pill styling now applies to the span itself (the same `[data-edge-value]` rule the edge lines use).
+
+## [0.3.0] — 2026-08-05
 
 ### Added
 
@@ -45,3 +61,5 @@ Initial release. Per the library spec (`headless-canvas-spec.md` §13), this sin
 - Docs — library-grade README, typed API reference, this changelog, MIT license.
 
 [0.2.0]: https://github.com/AntonLapshin/headless-canvas/releases/tag/v0.2.0
+[0.3.0]: https://github.com/AntonLapshin/headless-canvas/releases/tag/v0.3.0
+[0.4.0]: https://github.com/AntonLapshin/headless-canvas/releases/tag/v0.4.0

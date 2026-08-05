@@ -120,15 +120,27 @@ describe('rendering & data attributes', () => {
 });
 
 describe('selection', () => {
-  it('selects an item on body click and deselects on empty click', () => {
+  it('ignores body clicks (the content owns them) and deselects on empty click', () => {
     const onSelect = vi.fn();
     const { root } = renderCanvas(<Fixture onSelect={onSelect} />);
+    // A click on the item body is deliberately ignored: no selection, no drag.
     fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
+    expect(onSelect).not.toHaveBeenCalled();
+    const itemA = screen.getByText('A').closest('[data-item-id="a"]') as HTMLElement;
+    expect(itemA).toHaveAttribute('data-selected', 'false');
+    // Empty space still deselects.
+    fireEvent.pointerDown(root, { clientX: 5, clientY: 5, pointerId: 1, buttons: 1 });
+    expect(onSelect).toHaveBeenLastCalledWith(null);
+  });
+
+  it('selects via the move handle', () => {
+    const onSelect = vi.fn();
+    const { root } = renderCanvas(<Fixture onSelect={onSelect} />);
+    // MoveHandle hit region is a 20×20 square around local (0,0) → canvas (90..110, 40..60).
+    fireEvent.pointerDown(root, { clientX: 100, clientY: 50, pointerId: 1, buttons: 1 });
     expect(onSelect).toHaveBeenLastCalledWith('a');
     const itemA = screen.getByText('A').closest('[data-item-id="a"]') as HTMLElement;
     expect(itemA).toHaveAttribute('data-selected', 'true');
-    fireEvent.pointerDown(root, { clientX: 5, clientY: 5, pointerId: 1, buttons: 1 });
-    expect(onSelect).toHaveBeenLastCalledWith(null);
   });
 
   it('fires onItemDoubleClick with the hit item id', () => {
@@ -139,12 +151,65 @@ describe('selection', () => {
   });
 });
 
+describe('z-order (selected item on top)', () => {
+  it('gives the selected item the highest z-index, transiently (store untouched)', () => {
+    const { holder, ref } = makeRef();
+    renderCanvas(<Fixture canvasRef={ref} />);
+    const itemA = screen.getByText('A').closest('[data-item-id="a"]') as HTMLElement;
+    const itemB = screen.getByText('B').closest('[data-item-id="b"]') as HTMLElement;
+    // Unselected: no inline z-index (mount order rules).
+    expect(itemA.style.zIndex).toBe('');
+    expect(itemB.style.zIndex).toBe('');
+    // Select a (mount order 0) while b is later (mount order 1) → a jumps above.
+    act(() => holder.current!.select('a'));
+    expect(itemA.style.zIndex).toBe('2'); // max(0, 1) + 1
+    expect(itemB.style.zIndex).toBe('');
+    // Deselect → the transient bump disappears and the store never changed.
+    act(() => holder.current!.select(null));
+    expect(itemA.style.zIndex).toBe('');
+    expect(holder.current!.getItems().find((i) => i.id === 'a')!.zIndex).toBeUndefined();
+  });
+
+  it('the selected item wins hit-testing even when another item covers it', () => {
+    const { holder, ref } = makeRef();
+    renderCanvas(
+      <Canvas width={400} height={300} ref={ref} aria-label="z hit canvas">
+        <Item id="bottom" x={100} y={50} width={200} height={100} features={<MoveHandle />}>
+          <span>BOTTOM</span>
+        </Item>
+        <Item id="top" x={150} y={80} width={120} height={80} features={<MoveHandle />}>
+          <span>TOP</span>
+        </Item>
+      </Canvas>,
+    );
+    const overlap = { x: 200, y: 120 }; // inside both items
+    // No selection → the DOM-topmost item wins.
+    fireEvent.pointerMove(document.querySelector('[data-canvas]')!, {
+      clientX: overlap.x,
+      clientY: overlap.y,
+      buttons: 0,
+    });
+    expect(document.querySelector('[data-item-id="top"]')).toHaveAttribute('data-hovered', 'true');
+    expect(document.querySelector('[data-item-id="bottom"]')).toHaveAttribute('data-hovered', 'false');
+    // Select the covered item → it becomes topmost for hit-testing.
+    act(() => holder.current!.select('bottom'));
+    fireEvent.pointerMove(document.querySelector('[data-canvas]')!, {
+      clientX: overlap.x,
+      clientY: overlap.y,
+      buttons: 0,
+    });
+    expect(document.querySelector('[data-item-id="bottom"]')).toHaveAttribute('data-hovered', 'true');
+    expect(document.querySelector('[data-item-id="top"]')).toHaveAttribute('data-hovered', 'false');
+  });
+});
+
 describe('move drag', () => {
   it('moves the item by the pointer delta', async () => {
     const onItemsChange = vi.fn();
     const { holder, ref } = makeRef();
     const { root } = renderCanvas(<Fixture canvasRef={ref} onItemsChange={onItemsChange} />);
-    drag(root, { x: 150, y: 75 }, { x: 170, y: 95 });
+    // Grab the move handle (top-left corner at (100, 50)) and drag +20/+20.
+    drag(root, { x: 100, y: 50 }, { x: 120, y: 70 });
     const items = holder.current!.getItems();
     const a = items.find((i) => i.id === 'a')!;
     expect(a.x).toBe(120);
@@ -156,11 +221,20 @@ describe('move drag', () => {
     await flushAsync();
   });
 
+  it('does not move on a body drag — the body is not a move region', () => {
+    const { holder, ref } = makeRef();
+    const { root } = renderCanvas(<Fixture canvasRef={ref} />);
+    drag(root, { x: 150, y: 75 }, { x: 170, y: 95 });
+    const a = holder.current!.getItems().find((i) => i.id === 'a')!;
+    expect(a.x).toBe(100);
+    expect(a.y).toBe(50);
+  });
+
   it('fires onDragStart/onDragEnd with the drag kind', () => {
     const onDragStart = vi.fn();
     const onDragEnd = vi.fn();
     const { root } = renderCanvas(<Fixture onDragStart={onDragStart} onDragEnd={onDragEnd} />);
-    drag(root, { x: 150, y: 75 }, { x: 160, y: 80 });
+    drag(root, { x: 100, y: 50 }, { x: 110, y: 55 });
     expect(onDragStart).toHaveBeenCalledWith('a', 'move');
     expect(onDragEnd).toHaveBeenCalledWith('a', 'move');
   });
@@ -168,7 +242,7 @@ describe('move drag', () => {
   it('respects snapToGrid on both axes', () => {
     const { holder, ref } = makeRef();
     const { root } = renderCanvas(<Fixture canvasRef={ref} snapToGrid={50} />);
-    drag(root, { x: 150, y: 75 }, { x: 173, y: 91 }); // dx 23, dy 16
+    drag(root, { x: 100, y: 50 }, { x: 123, y: 66 }); // dx 23, dy 16
     const a = holder.current!.getItems().find((i) => i.id === 'a')!;
     expect(a.x).toBe(100); // 123 → 100 (snap to 50)
     expect(a.y).toBe(50); // 66 → 50
@@ -177,7 +251,7 @@ describe('move drag', () => {
   it('clamps to constraints', () => {
     const { holder, ref } = makeRef();
     const { root } = renderCanvas(<Fixture canvasRef={ref} constraints={{ maxX: 380, maxY: 280 }} />);
-    drag(root, { x: 150, y: 75 }, { x: 400, y: 300 });
+    drag(root, { x: 100, y: 50 }, { x: 350, y: 250 });
     const a = holder.current!.getItems().find((i) => i.id === 'a')!;
     expect(a.x).toBe(180); // right edge may not pass 380
     expect(a.y).toBe(180);
@@ -187,7 +261,7 @@ describe('move drag', () => {
     const { holder, ref } = makeRef();
     const { root } = renderCanvas(<Fixture canvasRef={ref} />);
     // Item a is 200×100 at (100, 50) on a 400×300 canvas → x ≤ 200, y ≤ 200.
-    drag(root, { x: 150, y: 75 }, { x: 600, y: 400 });
+    drag(root, { x: 100, y: 50 }, { x: 550, y: 350 });
     const a = holder.current!.getItems().find((i) => i.id === 'a')!;
     expect(a.x).toBe(200);
     expect(a.y).toBe(200);
@@ -205,7 +279,7 @@ describe('move drag', () => {
         </Item>
       </Canvas>,
     );
-    drag(root, { x: 150, y: 75 }, { x: 200, y: 100 });
+    drag(root, { x: 100, y: 50 }, { x: 200, y: 100 });
     const l = holder.current!.getItems()[0];
     expect(l.x).toBe(100);
     expect(l.y).toBe(50);
@@ -351,10 +425,10 @@ describe('readout features', () => {
       </Canvas>,
     );
     expect(document.querySelector('[data-feature="edge-lines"]')).toBeNull();
-    // Move the item by +25/+35 → (125, 85). Canvas 400×300: top 85, bottom 115,
-    // left 125, right 75.
-    fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
-    fireEvent.pointerMove(root, { clientX: 175, clientY: 110, pointerId: 1, buttons: 1 });
+    // Grab the move handle at (100, 50) and move the item by +25/+35 → (125, 85).
+    // Canvas 400×300: top 85, bottom 115, left 125, right 75.
+    fireEvent.pointerDown(root, { clientX: 100, clientY: 50, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 125, clientY: 85, pointerId: 1, buttons: 1 });
     const lines = document.querySelector('[data-feature="edge-lines"]')!;
     expect(lines).toBeTruthy();
     const edges = [...document.querySelectorAll('[data-edge-line]')];
@@ -365,11 +439,11 @@ describe('readout features', () => {
     expect(value('bottom')).toBe('115');
     expect(value('left')).toBe('125');
     expect(value('right')).toBe('75');
-    fireEvent.pointerUp(root, { clientX: 175, clientY: 110, pointerId: 1, buttons: 1 });
+    fireEvent.pointerUp(root, { clientX: 125, clientY: 85, pointerId: 1, buttons: 1 });
     expect(document.querySelector('[data-feature="edge-lines"]')).toBeNull();
   });
 
-  it('EdgeLines prefers the nearest item edge over the canvas bound', () => {
+  it('EdgeLines always measures to the canvas bound, ignoring neighbors', () => {
     const { root } = renderCanvas(
       <Canvas width={400} height={300} aria-label="edge neighbor canvas">
         <Item id="a" x={100} y={50} width={200} height={100} features={<><MoveHandle /><EdgeLines /></>}>
@@ -380,13 +454,13 @@ describe('readout features', () => {
         </Item>
       </Canvas>,
     );
-    // Item b's bottom = 40; item a starts at top 50 → distance 10 beats canvas 50.
-    fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
-    fireEvent.pointerMove(root, { clientX: 155, clientY: 75, pointerId: 1, buttons: 1 }); // tiny move
+    // Item b's bottom = 40, but the top line must measure to the CANVAS (50),
+    // not the neighbor — lines always run edge-to-canvas.
+    fireEvent.pointerDown(root, { clientX: 100, clientY: 50, pointerId: 1, buttons: 1 });
     const lines = document.querySelector('[data-feature="edge-lines"]')!;
     const top = lines.querySelector('[data-edge-line="top"] [data-edge-value]')!.textContent;
-    expect(top).toBe('10');
-    fireEvent.pointerUp(root, { clientX: 155, clientY: 75, pointerId: 1, buttons: 1 });
+    expect(top).toBe('50');
+    fireEvent.pointerUp(root, { clientX: 100, clientY: 50, pointerId: 1, buttons: 1 });
   });
 
   it('RotateValue shows the live angle while rotating', () => {
@@ -404,6 +478,8 @@ describe('readout features', () => {
     const rot = document.querySelector('[data-feature="rotate-value"]')!;
     expect(rot).toBeTruthy();
     expect(rot.textContent).toBe('90°');
+    // The value span carries data-edge-value → styled like the edge-line pills.
+    expect(rot.querySelector('[data-edge-value]')).toBeTruthy();
     fireEvent.pointerUp(root, { clientX: 300, clientY: 100, pointerId: 1, buttons: 1 });
     expect(document.querySelector('[data-feature="rotate-value"]')).toBeNull();
   });
@@ -423,6 +499,7 @@ describe('readout features', () => {
     const size = document.querySelector('[data-feature="resize-value"]')!;
     expect(size).toBeTruthy();
     expect(size.textContent).toBe('250 × 130');
+    expect(size.querySelector('[data-edge-value]')).toBeTruthy();
     fireEvent.pointerUp(root, { clientX: 350, clientY: 180, pointerId: 1, buttons: 1 });
     expect(document.querySelector('[data-feature="resize-value"]')).toBeNull();
   });
@@ -435,11 +512,11 @@ describe('readout features', () => {
         </Item>
       </Canvas>,
     );
-    fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
-    fireEvent.pointerMove(root, { clientX: 160, clientY: 85, pointerId: 1, buttons: 1 });
+    fireEvent.pointerDown(root, { clientX: 100, clientY: 50, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 110, clientY: 60, pointerId: 1, buttons: 1 });
     expect(document.querySelector('[data-feature="rotate-value"]')).toBeNull();
     expect(document.querySelector('[data-feature="resize-value"]')).toBeNull();
-    fireEvent.pointerUp(root, { clientX: 160, clientY: 85, pointerId: 1, buttons: 1 });
+    fireEvent.pointerUp(root, { clientX: 110, clientY: 60, pointerId: 1, buttons: 1 });
   });
 });
 
@@ -527,7 +604,7 @@ describe('controlled mode', () => {
       );
     }
     const { root } = renderCanvas(<Harness />);
-    drag(root, { x: 150, y: 75 }, { x: 190, y: 95 });
+    drag(root, { x: 100, y: 50 }, { x: 140, y: 70 });
     expect(latestState.value).toBe('140');
     await flushAsync();
     expect(holder.current!.getItems()[0].x).toBe(140);
@@ -548,14 +625,14 @@ describe('controlled mode', () => {
           }}
           aria-label="controlled selection canvas"
         >
-          <Item id="a" x={100} y={50} width={200} height={100}>
+          <Item id="a" x={100} y={50} width={200} height={100} features={<MoveHandle />}>
             <span>A</span>
           </Item>
         </Canvas>
       );
     };
     const { root } = renderCanvas(<Harness />);
-    fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
+    fireEvent.pointerDown(root, { clientX: 100, clientY: 50, pointerId: 1, buttons: 1 });
     expect(onSelect).toHaveBeenCalledWith('a');
     const itemA = screen.getByText('A').closest('[data-item-id="a"]') as HTMLElement;
     expect(itemA).toHaveAttribute('data-selected', 'true');

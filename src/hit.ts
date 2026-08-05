@@ -408,67 +408,27 @@ export interface MeasureBounds {
 }
 
 /**
- * Figma-style edge measurement: for each of the four edges, find the nearest
- * *target edge* in that direction — another item's facing edge (when the
- * perpendicular spans overlap) or the canvas/constraints bound, whichever is
- * nearer. Edges flush against a target (distance 0) are omitted.
+ * Figma-style edge measurement: for each of the four edges, the distance to
+ * the corresponding canvas/constraints bound. Deliberately simple — lines
+ * always run from the item's edge straight to the canvas edge and never
+ * stop at other items. Edges flush against a bound (distance 0) are omitted.
  */
 export function measureEdges(
   item: ItemGeometry,
-  others: ItemGeometry[],
   bounds: MeasureBounds,
 ): EdgeMeasurement[] {
   const w = item.width ?? 0;
   const h = item.height ?? 0;
-  const left = item.x;
-  const top = item.y;
-  const right = left + w;
-  const bottom = top + h;
   const result: EdgeMeasurement[] = [];
 
-  const overlapsX = (o: ItemGeometry): boolean => {
-    const ow = o.width ?? 0;
-    return o.x < right && o.x + ow > left;
-  };
-  const overlapsY = (o: ItemGeometry): boolean => {
-    const oh = o.height ?? 0;
-    return o.y < bottom && o.y + oh > top;
-  };
+  const topDist = item.y - bounds.minY;
+  const bottomDist = bounds.maxY - (item.y + h);
+  const leftDist = item.x - bounds.minX;
+  const rightDist = bounds.maxX - (item.x + w);
 
-  // Top: nearest bottom edge of an item above (horizontal overlap), else bound.
-  let topDist = top - bounds.minY;
-  for (const o of others) {
-    if (!overlapsX(o)) continue;
-    const ob = (o.y ?? 0) + (o.height ?? 0);
-    if (ob <= top && top - ob < topDist) topDist = top - ob;
-  }
   if (topDist > 0) result.push({ edge: 'top', distance: topDist });
-
-  // Bottom: nearest top edge of an item below, else bound.
-  let bottomDist = bounds.maxY - bottom;
-  for (const o of others) {
-    if (!overlapsX(o)) continue;
-    const ot = o.y ?? 0;
-    if (ot >= bottom && ot - bottom < bottomDist) bottomDist = ot - bottom;
-  }
   if (bottomDist > 0) result.push({ edge: 'bottom', distance: bottomDist });
-
-  // Left: nearest right edge of an item to the left (vertical overlap), else bound.
-  let leftDist = left - bounds.minX;
-  for (const o of others) {
-    if (!overlapsY(o)) continue;
-    const or_ = (o.x ?? 0) + (o.width ?? 0);
-    if (or_ <= left && left - or_ < leftDist) leftDist = left - or_;
-  }
   if (leftDist > 0) result.push({ edge: 'left', distance: leftDist });
-
-  // Right: nearest left edge of an item to the right, else bound.
-  let rightDist = bounds.maxX - right;
-  for (const o of others) {
-    if (!overlapsY(o)) continue;
-    const ol = o.x ?? 0;
-    if (ol >= right && ol - right < rightDist) rightDist = ol - right;
-  }
   if (rightDist > 0) result.push({ edge: 'right', distance: rightDist });
 
   return result;

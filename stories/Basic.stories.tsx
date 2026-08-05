@@ -15,12 +15,12 @@ function BasicDemo() {
   const ref = useCanvasHandle();
   return (
     <StyledCanvas ref={ref} width={560} height={380} aria-label="Basic canvas">
-      <StyledItem id="a" x={80} y={70} width={200} height={120}>
+      <StyledItem id="a" x={80} y={70} width={200} height={120} features={<MoveHandleStyled />}>
         <div style={boxStyle}>
           <div>
             <strong>Item A</strong>
             <br />
-            click to select
+            click the move handle to select
           </div>
         </div>
       </StyledItem>
@@ -41,7 +41,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Items without features are selectable but not draggable. Click an item to select it (data-selected="true" — the accent ring), click empty space to deselect. Everything you see is consumer CSS from the default styled kit (stories/styled.tsx); the library itself still ships zero styles.',
+          'Selection happens through an item’s handles (the move handle also selects), keyboard focus + arrows, or the `select` API — clicking an item body is deliberately ignored so the content inside items stays fully interactive (buttons, selects, links…). Click empty space to deselect (data-selected="true" — the accent ring). Everything you see is consumer CSS from the default styled kit (stories/styled.tsx); the library itself still ships zero styles.',
       },
     },
   },
@@ -53,7 +53,8 @@ type Story = StoryObj<typeof meta>;
 export const SelectionOnly: Story = {
   play: async () => {
     const itemA = document.querySelector('[data-item-id="a"]') as HTMLElement;
-    clickAt({ x: 120, y: 100 });
+    // Item a is at (80, 70); its move handle sits at the top-left corner.
+    clickAt({ x: 80, y: 70 });
     await flush();
     expect(itemA.getAttribute('data-selected')).toBe('true');
     clickAt({ x: 10, y: 10 });

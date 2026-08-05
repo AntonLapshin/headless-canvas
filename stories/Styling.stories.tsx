@@ -43,7 +43,7 @@ function StylingDemo(props: { theme: 'light' | 'dark' }) {
           <div>
             <strong>The default styled kit</strong>
             <br />
-            hover reveals the corner handles · drag anywhere to move
+            hover reveals the corner handles · drag by the move handle
           </div>
         </div>
       </StyledItem>

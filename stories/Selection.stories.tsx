@@ -59,7 +59,7 @@ const selectionMeta = {
     docs: {
       description: {
         component:
-          'Selection is either uncontrolled (canvas owns it, onSelect informs you) or controlled (pass selectedId + onSelect). Click empty space to deselect. The data-selected attribute drives the styled kit\'s accent ring — and its handles stay visible on the selected item.',
+          'Selection is either uncontrolled (canvas owns it, onSelect informs you) or controlled (pass selectedId + onSelect). Click an item’s move handle to select it, click empty space to deselect. The data-selected attribute drives the styled kit’s accent ring — and its handles stay visible on the selected item.',
       },
     },
   },
@@ -71,7 +71,8 @@ type SelectionStory = StoryObj<typeof selectionMeta>;
 export const Uncontrolled: SelectionStory = {
   play: async () => {
     const itemA = document.querySelector('[data-item-id="a"]') as HTMLElement;
-    clickAt({ x: 150, y: 120 });
+    // Item a is at (100, 90) — its move handle sits at the top-left corner.
+    clickAt({ x: 100, y: 90 });
     await flush();
     expect(itemA.getAttribute('data-selected')).toBe('true');
     clickAt({ x: 10, y: 10 });
@@ -84,7 +85,8 @@ export const Controlled: SelectionStory = {
   args: { controlled: true },
   play: async () => {
     const itemB = document.querySelector('[data-item-id="b"]') as HTMLElement;
-    clickAt({ x: 380, y: 240 });
+    // Item b is at (350, 220) — click its move handle corner.
+    clickAt({ x: 350, y: 220 });
     await flush();
     expect(itemB.getAttribute('data-selected')).toBe('true');
     const itemA = document.querySelector('[data-item-id="a"]') as HTMLElement;
@@ -218,7 +220,8 @@ export const ControlledRoundTrip: StoryObj<typeof controlledMeta> = {
   play: async () => {
     const handle = await getHandle();
     const before = handle.getItems().find((i) => i.id === 'c1')!;
-    dragTo({ x: 180, y: 130 }, { x: 230, y: 160 });
+    // c1 is at (120, 90); drag from its move handle (top-left corner) +50/+30.
+    dragTo({ x: 120, y: 90 }, { x: 170, y: 120 });
     const after = handle.getItems().find((i) => i.id === 'c1')!;
     expect(after.x).toBe(before.x + 50);
     expect(after.y).toBe(before.y + 30);

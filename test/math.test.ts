@@ -301,9 +301,9 @@ describe('resizeGeometry lockRatio', () => {
 describe('measureEdges', () => {
   const bounds = { minX: 0, minY: 0, maxX: 400, maxY: 300 };
 
-  it('measures distances to the canvas bounds when alone', () => {
+  it('measures the distance from each edge to the canvas bound', () => {
     // 200×100 at (100, 50) on a 400×300 canvas.
-    const edges = measureEdges(item(), [], bounds);
+    const edges = measureEdges(item(), bounds);
     expect(edges).toEqual([
       { edge: 'top', distance: 50 },
       { edge: 'bottom', distance: 150 },
@@ -312,27 +312,22 @@ describe('measureEdges', () => {
     ]);
   });
 
-  it('prefers the nearest other item edge over the canvas bound', () => {
-    // Item at (100, 50) 200×100; a 60×30 item sits above, overlapping x.
-    const above = item({ id: 'above', x: 130, y: 0, width: 60, height: 30 });
-    const edges = measureEdges(item(), [above], bounds);
-    const top = edges.find((e) => e.edge === 'top')!;
-    expect(top.distance).toBe(50 - 30); // above bottom = 30, not the canvas 50
-  });
-
-  it('skips edges flush against a target (distance 0)', () => {
-    const flush = item({ id: 'flush', x: 100, y: 150, width: 200, height: 100 });
-    // The flush item sits directly below: its top == our bottom (150).
-    const edges = measureEdges(item(), [flush], bounds);
-    expect(edges.find((e) => e.edge === 'bottom')).toBeUndefined();
-  });
-
-  it('only counts items with perpendicular overlap', () => {
-    // Item at (100, 50) 200×100; an item above but far to the left (no x overlap).
-    const offset = item({ id: 'offset', x: 0, y: 0, width: 40, height: 40 });
-    const edges = measureEdges(item(), [offset], bounds);
-    // offset right edge = 40, item left = 100 → no overlap → top stays at canvas 50.
+  it('always targets the canvas bound — other items are ignored', () => {
+    // (Old behavior measured to the nearest item edge; now the target is
+    // always the canvas bound.) An item 10px above must NOT shorten the top
+    // line: it stays at the canvas distance 50.
+    const edges = measureEdges(item(), bounds);
     expect(edges.find((e) => e.edge === 'top')!.distance).toBe(50);
+  });
+
+  it('omits edges flush against a bound (distance 0)', () => {
+    // Item flush with the top and left canvas edges → those lines are skipped.
+    const flush = item({ x: 0, y: 0 });
+    const edges = measureEdges(flush, bounds);
+    expect(edges.find((e) => e.edge === 'top')).toBeUndefined();
+    expect(edges.find((e) => e.edge === 'left')).toBeUndefined();
+    expect(edges.find((e) => e.edge === 'bottom')!.distance).toBe(200);
+    expect(edges.find((e) => e.edge === 'right')!.distance).toBe(200);
   });
 });
 

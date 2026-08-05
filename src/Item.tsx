@@ -11,7 +11,7 @@
  * resized or scaled until given explicit dimensions (documented no-op).
  */
 
-import { memo, useLayoutEffect, useRef } from 'react';
+import { memo, useCallback, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import styles from './canvas.module.scss';
 import { ItemContext, useInternalCanvas } from './context';
 import { useItemSnapshot } from './store';
@@ -75,13 +75,32 @@ function ItemComponent(props: ItemProps) {
   const hovered = ctx.hoveredId === id;
   const selectable = !disabled;
 
+  /**
+   * Highest effective z-index across all items. Only the SELECTED item
+   * subscribes meaningfully: for everyone else the snapshot is a constant
+   * (`-Infinity`), so store updates never re-render them. The selected item
+   * re-renders only when the max actually changes (e.g. another item is
+   * brought above it) and stays on top with `max + 1`. Transient — the
+   * store's zIndex is never mutated, so getItems()/onItemsChange stay clean.
+   */
+  const selectedMaxZ = useSyncExternalStore(
+    store.subscribe,
+    useCallback(() => {
+      if (!selected) return -Infinity;
+      let max = -Infinity;
+      for (const g of store.getAll()) max = Math.max(max, store.effectiveZ(g.id));
+      return max;
+    }, [selected, store]),
+    () => -Infinity,
+  );
+
   const wrapperStyle: React.CSSProperties = {
     left: geometry.x,
     top: geometry.y,
     width: geometry.width,
     height: geometry.height,
     transform: geometry.rotation ? `rotate(${geometry.rotation}deg)` : undefined,
-    zIndex: geometry.zIndex,
+    zIndex: selected ? selectedMaxZ + 1 : geometry.zIndex,
     ...style,
   };
 

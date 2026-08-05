@@ -174,6 +174,21 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
 
   const getItems = useCallback(() => store.getAll(), [store]);
 
+  /**
+   * Items topmost-first for hit-testing. The selected item is forced to the
+   * very top — matching its DOM z-index — so it wins the pointer even when
+   * another item is later in the store order.
+   */
+  const topmostItems = useCallback((): ItemGeometry[] => {
+    const items = store.getAll().reverse(); // topmost first
+    if (!selectedId) return items;
+    const idx = items.findIndex((g) => g.id === selectedId);
+    if (idx <= 0) return items; // already topmost (or not registered)
+    const [selected] = items.splice(idx, 1);
+    items.unshift(selected);
+    return items;
+  }, [store, selectedId]);
+
   // ---- drag math dispatch ----
   const applyDrag = useCallback(
     (session: DragSession, dx: number, dy: number, logical: { x: number; y: number }, event: PointerEvent) => {
@@ -248,7 +263,7 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
       const logical = toLogical(e.clientX, e.clientY);
       const result = hitTest({
         point: logical,
-        itemsTopmostFirst: [...store.getAll()].reverse(),
+        itemsTopmostFirst: topmostItems(),
         features: registry.getAll(),
       });
       if (result.type === 'feature') {
@@ -259,12 +274,14 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
         beginDrag(result.entry, result.itemId, logical, e.pointerId, e.currentTarget);
         e.preventDefault();
       } else if (result.type === 'item') {
-        select(result.itemId);
+        // Body clicks are deliberately ignored: the item's content owns them
+        // (buttons, selects, links…). Nothing is intercepted, no selection is
+        // made — the event passes through to the DOM normally.
       } else {
         select(null);
       }
     },
-    [disabled, toLogical, store, registry, select, beginDrag],
+    [disabled, toLogical, store, registry, select, beginDrag, topmostItems],
   );
 
   const handlePointerMove = useCallback(
@@ -286,7 +303,7 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
         // Hover tracking (only updates when the hovered item changes).
         const result = hitTest({
           point: logical,
-          itemsTopmostFirst: [...store.getAll()].reverse(),
+          itemsTopmostFirst: topmostItems(),
           features: registry.getAll(),
         });
         const nextHovered = result.type === 'empty' ? null : result.itemId;
@@ -295,7 +312,7 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
         setHoveredCursor((prev) => (prev === nextCursor ? prev : nextCursor));
       }
     },
-    [disabled, toLogical, applyDrag, store, registry, notify],
+    [disabled, toLogical, applyDrag, store, registry, notify, topmostItems],
   );
 
   const endDrag = useCallback(
@@ -322,12 +339,12 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
       const logical = toLogical(e.clientX, e.clientY);
       const result = hitTest({
         point: logical,
-        itemsTopmostFirst: [...store.getAll()].reverse(),
+        itemsTopmostFirst: topmostItems(),
         features: registry.getAll(),
       });
       if (result.type !== 'empty') onItemDoubleClickRef.current?.(result.itemId);
     },
-    [disabled, toLogical, store, registry],
+    [disabled, toLogical, registry, topmostItems],
   );
 
   // ---- keyboard (bubbles up from a focused item) ----

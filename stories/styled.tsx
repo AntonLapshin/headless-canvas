@@ -42,18 +42,18 @@ import type { CanvasHandle, CanvasProps, Direction, ItemProps } from '../src/typ
 
 export const hcStyles = `
 .hc-demo {
-  --hc-canvas-bg: #faf6ef;
-  --hc-border: #d8c8ae;
+  --hc-canvas-bg: #ffffff;
+  --hc-border: #d4d4d8;
   --hc-text: #4a3f35;
   --hc-item-bg: #f3e9d8;
   --hc-item-bg-2: #e9dcc4;
-  --hc-accent: #c67b5c;
-  --hc-hover: #a8b5a0;
+  --hc-accent: #3b82f6;
+  --hc-hover: #3b82f6;
   --hc-locked: #9a7bb8;
-  --hc-handle-bg: #fff8ef;
-  --hc-handle-border: #c67b5c;
-  --hc-handle-icon: #c67b5c;
-  --hc-rotate-stem: #c67b5c;
+  --hc-handle-bg: #ffffff;
+  --hc-handle-border: #3b82f6;
+  --hc-handle-icon: #3b82f6;
+  --hc-rotate-stem: #3b82f6;
 }
 .hc-demo[data-theme="dark"] {
   --hc-canvas-bg: #23272e;
@@ -61,27 +61,24 @@ export const hcStyles = `
   --hc-text: #e8e3d8;
   --hc-item-bg: #2b313b;
   --hc-item-bg-2: #343b47;
-  --hc-accent: #7fd1ae;
-  --hc-hover: #b8a58a;
+  --hc-accent: #60a5fa;
+  --hc-hover: #60a5fa;
   --hc-locked: #c67b5c;
   --hc-handle-bg: #2f3540;
-  --hc-handle-border: #7fd1ae;
-  --hc-handle-icon: #7fd1ae;
-  --hc-rotate-stem: #7fd1ae;
+  --hc-handle-border: #60a5fa;
+  --hc-handle-icon: #60a5fa;
+  --hc-rotate-stem: #60a5fa;
 }
 
-/* ---- canvas chrome ---- */
+/* ---- canvas chrome: flat white stage, gray frame, no rounding/shadow ---- */
 .hc-demo [data-canvas] {
   border: 1px solid var(--hc-border);
-  border-radius: 12px;
   background: var(--hc-canvas-bg);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 /* ---- items: selection / hover / locked / disabled rings ---- */
 .hc-demo .hc-item {
-  border-radius: 10px;
   transition: box-shadow 0.15s ease;
 }
 .hc-demo [data-item-id] { outline: none; }
@@ -167,16 +164,8 @@ export const hcStyles = `
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   letter-spacing: 0.2px;
 }
-.hc-demo [data-feature="rotate-value"],
-.hc-demo [data-feature="resize-value"] {
-  color: #fff;
-  font: 600 11px/1.2 system-ui, sans-serif;
-  background: var(--hc-measure-pill, #2b2735);
-  padding: 3px 7px;
-  border-radius: 5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  letter-spacing: 0.2px;
-}
+/* Rotate/Resize values reuse the edge-value pill (their span carries
+   data-edge-value); only the container's centering stays here. */
 .hc-demo [data-feature="rotate-value"] { transform: translate(-50%, -50%); }
 .hc-demo [data-feature="resize-value"] { transform: translate(-50%, -50%); }
 

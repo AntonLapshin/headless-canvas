@@ -96,7 +96,6 @@ export const boxStyle: React.CSSProperties = {
   background:
     'linear-gradient(135deg, var(--hc-item-bg, #faf6ef) 0%, var(--hc-item-bg-2, #f0e6d6) 100%)',
   border: '1px solid var(--hc-border, #d8c8ae)',
-  borderRadius: 8,
   boxSizing: 'border-box',
   overflow: 'hidden',
   textAlign: 'center',

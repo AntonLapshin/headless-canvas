@@ -37,7 +37,7 @@ function IntroDemo(props: { scale?: number; snapToGrid?: number; disabled?: bool
           </div>
         </div>
       </StyledItem>
-      <StyledItem id="move-only" x={60} y={60} width={180} height={70} features={<MoveHandleStyled />}>
+      <StyledItem id="move-only" x={40} y={260} width={180} height={70} features={<MoveHandleStyled />}>
         <div style={{ ...boxStyle, background: '#eef2ea' }}>Move only</div>
       </StyledItem>
       <StyledItem id="auto" x={330} y={40} features={<MoveHandleStyled />}>
@@ -75,7 +75,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Headless, declarative React canvas. Everything is draggable: grab any item body (MoveHandle covers the whole item), drag the bottom-right corner to resize (lockRatio keeps the aspect), the top handle rotates. While dragging you get Figma-style readouts — edge measurement lines, live size and angle. Handles fade in on hover/selection; items stay inside the canvas. The library renders no visuals — this story styles its own items with the default styled kit (plain consumer CSS).',
+          'Headless, declarative React canvas. Everything is draggable: grab an item’s move handle (top-left corner) to move, drag the bottom-right corner to resize (lockRatio keeps the aspect), the top handle rotates. While dragging you get Figma-style readouts — edge measurement lines, live size and angle. Handles fade in on hover/selection; items stay inside the canvas. The library renders no visuals — this story styles its own items with the default styled kit (plain consumer CSS).',
       },
     },
   },

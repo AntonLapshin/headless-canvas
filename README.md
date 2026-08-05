@@ -88,8 +88,8 @@ export function Editor() {
 Selected / hovered / locked states are driven by data attributes, so they're pure CSS:
 
 ```css
-.item[data-selected="true"]  { outline: 2px dashed #c67b5c; }
-.item[data-hovered="true"]   { box-shadow: 0 0 0 2px rgba(0,0,0,.15); }
+.item[data-selected="true"]  { outline: 2px dashed #3b82f6; }
+.item[data-hovered="true"]   { box-shadow: 0 0 0 2px #3b82f6; }
 .item[data-locked="true"]    { opacity: .7; }
 .handle { position: absolute; width: 12px; height: 12px; cursor: move; ... }
 ```
@@ -148,7 +148,7 @@ Each handle renders **one invisible anchor `<div>`** (`data-feature`, `pointer-e
 
 | Handle | Props | Behavior |
 |---|---|---|
-| `MoveHandle` | `cursor?` (default `'move'`) | Hit region = the whole item body — grab anywhere to move. |
+| `MoveHandle` | `cursor?` (default `'move'`) | Hit region = a small square at the item's top-left corner (where the styled kit draws the move glyph). The body is deliberately **not** a move region: body clicks pass through to the item's content, so buttons/selects/links inside items stay interactive. |
 | `ResizeHandle` | `direction?` — `n/s/e/w/ne/nw/se/sw` (default `'se'`), `lockRatio?` (default `false`), `cursor?` | Resizes that edge/corner; `n`/`w` handles keep the opposite edge fixed. Min size 8 (configurable via constraints). With `lockRatio` the aspect ratio is preserved — corner handles scale proportionally from the opposite corner (the former `ScaleHandle` behavior), edge handles scale the perpendicular axis around the item center. No-op on auto-sized items. |
 | `RotateHandle` | `offset?` (default 24), `cursor?` | Sits above the item top-center; drag in a circle to rotate (normalized to [0, 360)). |
 
@@ -156,7 +156,7 @@ Each handle renders **one invisible anchor `<div>`** (`data-feature`, `pointer-e
 
 | Readout | Shows | While |
 |---|---|---|
-| `EdgeLines` | One tiny line from each item edge toward the nearest target edge (another item or the canvas edge), with the pixel distance in the middle of each line — Figma-style measurement | the item is **moved** |
+| `EdgeLines` | One line from each item edge straight to the corresponding canvas edge (lines never stop at other items), with the pixel distance in the middle of each line — Figma-style measurement | the item is **moved** |
 | `RotateValue` | The current angle (e.g. `45°`) | the item is **rotated** |
 | `ResizeValue` | Live `width × height` in px | the item is **resized** |
 
@@ -206,22 +206,24 @@ function CropHandle() {
 Style everything from these:
 
 ```css
-[data-canvas] { border-radius: 12px; background: #faf6ef; }
-[data-item-id]:focus-visible { outline: 2px solid #c67b5c; }
-[data-selected="true"] { box-shadow: 0 0 0 2px #c67b5c; }
+[data-canvas] { border: 1px solid #d4d4d8; background: #fff; }
+[data-item-id]:focus-visible { outline: 2px solid #3b82f6; }
+[data-selected="true"] { box-shadow: 0 0 0 2px #3b82f6; }
 [data-selected="true"] .handle, [data-hovered="true"] .handle { opacity: 1; }
 [data-locked="true"] .handle { opacity: .4; }
 ```
 
 **Convention for handle visibility** — the styled kit hides handles by default and fades them in with `[data-hovered="true"]` / `[data-selected="true"]` (plus `:focus-within` for keyboard users). The kit's reserved corner positions are pure CSS pins: move at `left/top`, resize at `right/bottom`, rotate above top-center.
 
-**Styling the readouts** — EdgeLines lines are `<div data-edge-line>` children with `--hc-edge-thickness` (default 1px) controlling line width; labels are `data-edge-value` pills. Rotate/Resize values are pills on `[data-feature="rotate-value"]` / `[data-feature="resize-value"]`. The styled kit's measurement CSS (red lines, dark number pills — Figma-style) is a copy-ready reference.
+**Styling the readouts** — EdgeLines lines are `<div data-edge-line>` children with `--hc-edge-thickness` (default 1px) controlling line width; labels are `data-edge-value` pills. The `RotateValue` / `ResizeValue` spans carry `data-edge-value` too, so the same pill rule styles them. The styled kit's measurement CSS (red lines, dark number pills — Figma-style) is a copy-ready reference.
+
+**Selected items render on top** — while an item is selected the canvas raises its z-index above every other item (transient, in the DOM only — the store's `zIndex` is never mutated) and hit-testing agrees, so the selected item always wins the pointer.
 
 Cursors for the built-in handles are applied by the canvas root while hovering (the anchors are `pointer-events: none`), so the `cursor` prop on each handle works out of the box — override by wrapping.
 
 ## Interaction & accessibility
 
-- **Pointer model** — one `onPointerDown/Move/Up` set on the canvas root with pointer capture; hit-testing is geometric (features → item bodies → empty, topmost first). Mouse and touch are unified via pointer events; multi-touch (pinch) is not v1.
+- **Pointer model** — one `onPointerDown/Move/Up` set on the canvas root with pointer capture; hit-testing is geometric (features → item bodies → empty, topmost first; the selected item is always topmost). Item **body clicks are ignored** — selection happens via handles, keyboard focus or the `select` API — so the DOM inside items (buttons, selects, links…) receives clicks untouched. Mouse and touch are unified via pointer events; multi-touch (pinch) is not v1.
 - **Bounds** — items can never leave the canvas: move, resize and keyboard moves clamp to the canvas edges (override individual edges with `constraints`). Programmatic writes (`updateItem`, controlled `items`) are not clamped — consumers own those.
 - **Keyboard** — items are focusable (`tabIndex=0`). When focused: **arrows** move 1px, **Shift+arrows** resize 1px from the top-left, **r/R** rotate ±15°, **Esc** deselects. `Delete` is deliberately not handled — consumers own deletion.
 - **ARIA** — canvas root is `role="group"` with your `aria-label`; items expose `aria-selected`; feature anchors carry `aria-label` ("Move item", …) and `aria-disabled`.
@@ -265,7 +267,7 @@ Selection has the same duality via `selectedId` / `onSelect`.
 
 ## Roadmap (v2 candidates)
 
-Multi-select/grouping · snap-to-other-item *guides* (EdgeLines already measures, snapping them to exact alignments is next) · pinch zoom · custom drag shapes (paths) · in-canvas text editing · a spatial index for very large canvases.
+Multi-select/grouping · snap-to-canvas-grid *guides* · pinch zoom · custom drag shapes (paths) · in-canvas text editing · a spatial index for very large canvases.
 
 ## License
 

@@ -38,7 +38,6 @@ function makeItems(count: number) {
             width: '100%',
             height: '100%',
             background: i % 2 ? '#e8dcc8' : '#dbe3d3',
-            borderRadius: 4,
             border: '1px solid #c9b896',
             boxSizing: 'border-box',
           }}
@@ -83,7 +82,7 @@ function PerfDemo(props: { count: number }) {
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#4a3f35' }}>
       <p style={{ margin: '0 0 8px' }}>
-        <strong>{props.count} items</strong> · drag any tile · frame time:{' '}
+        <strong>{props.count} items</strong> · drag any tile by its top-left handle · frame time:{' '}
         <strong>{stats.last.toFixed(2)}ms</strong> (smoothed avg{' '}
         {stats.avg.toFixed(2)}ms)
       </p>
