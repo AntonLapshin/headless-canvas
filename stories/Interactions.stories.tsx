@@ -11,6 +11,7 @@
 
 import type { Meta, StoryObj } from '@storybook/react';
 import { expect, fireEvent } from '@storybook/test';
+import { useState } from 'react';
 import { boxStyle, dragTo, flush, getHandle, useCanvasHandle } from './helpers';
 import {
   MoveHandleStyled,
@@ -380,5 +381,149 @@ export const Measure: StoryObj<typeof moveMeta> = {
     expect(items.find((i) => i.id === 'm')!.width).toBe(260);
     expect(items.find((i) => i.id === 'm')!.height).toBe(160);
     expect(items.find((i) => i.id === 'm')!.rotation).toBe(90);
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Interactive content                                                 */
+/* ------------------------------------------------------------------ */
+
+function ContentDemo() {
+  const ref = useCanvasHandle();
+  const [clicks, setClicks] = useState(0);
+  const [color, setColor] = useState('default');
+  return (
+    <StyledCanvas ref={ref} width={560} height={380} aria-label="Content canvas">
+      <StyledItem id="content" x={90} y={70} width={320} height={200} features={styledFeatures}>
+        <div style={{ ...boxStyle, flexDirection: 'column', alignItems: 'stretch', gap: 8, textAlign: 'left' }}>
+          <strong style={{ textAlign: 'center' }}>The item never steals events from its content</strong>
+          <p style={{ margin: 0, fontSize: 13 }}>
+            This text is selectable. The button and the select below work like any other DOM —
+            the canvas ignores body clicks entirely (selection happens via the handles).
+          </p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button type="button" onClick={() => setClicks((c) => c + 1)} style={{ padding: '4px 10px' }}>
+              Clicked {clicks}×
+            </button>
+            <select
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              style={{ padding: '3px 6px' }}
+              aria-label="Pick a color"
+            >
+              <option value="default">Default</option>
+              <option value="blue">Blue</option>
+              <option value="green">Green</option>
+            </select>
+            <span style={{ fontSize: 12 }}>select works too</span>
+          </div>
+        </div>
+      </StyledItem>
+    </StyledCanvas>
+  );
+}
+
+export const Content: StoryObj<typeof moveMeta> = {
+  render: () => <ContentDemo />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Item content is fully interactive: text is selectable, buttons and selects receive their clicks untouched. The canvas ignores body clicks entirely (items are selected via handles, keyboard or the `select` API), so nothing inside an item is ever swallowed — while the handles still win at their own hit regions.',
+      },
+    },
+  },
+  play: async () => {
+    const handle = await getHandle();
+    const root = document.querySelector('[data-canvas]') as HTMLElement;
+    const item = document.querySelector('[data-item-id="content"]') as HTMLElement;
+
+    // The button inside the item works — the canvas does not swallow the click.
+    // (Scoped to the item: the Storybook chrome renders its own buttons.)
+    const button = item.querySelector('button') as HTMLButtonElement;
+    fireEvent.click(button);
+    await flush();
+    expect(button.textContent).toBe('Clicked 1×');
+    expect(item.getAttribute('data-selected')).toBe('false');
+
+    // A pointer press on the item body is a pass-through too (no selection).
+    fireEvent.pointerDown(root, { clientX: 200, clientY: 120, pointerId: 1, buttons: 1 });
+    fireEvent.pointerUp(root, { clientX: 200, clientY: 120, pointerId: 1, buttons: 1 });
+    await flush();
+    expect(item.getAttribute('data-selected')).toBe('false');
+
+    // The select inside the item works (its value is consumer state).
+    const select = item.querySelector('select') as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'blue' } });
+    await flush();
+    expect(select.value).toBe('blue');
+
+    // Handles still win at their own hit region: dragging by the move handle
+    // (the item's top-left corner) moves the item.
+    const before = handle.getItems().find((i) => i.id === 'content')!;
+    dragTo({ x: 90, y: 70 }, { x: 130, y: 100 });
+    const after = handle.getItems().find((i) => i.id === 'content')!;
+    expect(after.x).toBe(before.x + 40);
+    expect(after.y).toBe(before.y + 30);
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Measure — rotated item                                              */
+/* ------------------------------------------------------------------ */
+
+function MeasureRotatedDemo() {
+  const ref = useCanvasHandle();
+  return (
+    <StyledCanvas ref={ref} width={560} height={380} aria-label="Measure rotated canvas">
+      <StyledItem id="m" x={180} y={100} width={220} height={130} rotation={30} features={styledFeatures}>
+        <div style={boxStyle}>
+          <div>
+            <strong>Rotated 30°</strong>
+            <br />
+            drag by the move handle — the edge lines stay vertical/horizontal
+          </div>
+        </div>
+      </StyledItem>
+    </StyledCanvas>
+  );
+}
+
+export const MeasureRotated: StoryObj<typeof moveMeta> = {
+  render: () => <MeasureRotatedDemo />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Rotated items measure like unrotated ones: `EdgeLines` renders counter-rotated about the item center, so the measurement lines stay vertical/horizontal in canvas space (and `RotateValue`/`ResizeValue` pills stay upright) — exactly as if the item were not rotated at all. Distances are still measured from the item’s unrotated box to the canvas edges.',
+      },
+    },
+  },
+  play: async () => {
+    const handle = await getHandle();
+    const root = document.querySelector('[data-canvas]') as HTMLElement;
+    const rect = root.getBoundingClientRect();
+    const pt = (x: number, y: number) => ({ clientX: rect.left + x, clientY: rect.top + y });
+
+    // Item at (180, 100) 220×130, rotated 30° about the center (290, 165).
+    // The move handle (local (0,0)) sits at canvas (227.2, 53.7). Drag +40/+40
+    // → item moves to (220, 140).
+    fireEvent.pointerDown(root, { ...pt(227.2, 53.7), pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { ...pt(267.2, 93.7), pointerId: 1, buttons: 1 });
+    await flush();
+    const lines = document.querySelector('[data-feature="edge-lines"]') as HTMLElement;
+    expect(lines).toBeTruthy();
+    // Counter-rotated about the item center (110, 65 in the readout's own
+    // local space) → the lines stay axis-aligned in canvas space.
+    expect(lines.style.transform).toBe('rotate(-30deg)');
+    expect(lines.style.transformOrigin).toBe('110px 65px');
+    // Distances from the UNROTATED box at (220, 140) on a 560×380 canvas:
+    // top 140, bottom 110, left 220, right 120.
+    const values = [...document.querySelectorAll('[data-edge-value]')].map((el) => el.textContent);
+    expect(values).toEqual(['140', '110', '220', '120']);
+    fireEvent.pointerUp(root, { ...pt(267.2, 93.7), pointerId: 1, buttons: 1 });
+    const after = handle.getItems().find((i) => i.id === 'm')!;
+    expect(after.x).toBe(220);
+    expect(after.y).toBe(140);
   },
 };

@@ -23,7 +23,10 @@
 .item {
   position: absolute;
   box-sizing: border-box;
-  user-select: none;
+  /* Deliberately NO user-select: the item owns no pointer events — its
+     content does. Text inside items must be selectable and buttons/selects/
+     links must work like any other DOM. Consumers who want non-selectable
+     items set user-select on their own content. */
 }
 
 .feature {

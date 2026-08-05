@@ -49,7 +49,7 @@ npm install headless-canvas
 # peer: react >= 18
 ```
 
-The package ships ESM + CJS with bundled TypeScript declarations, and has **zero runtime dependencies**. The one structural stylesheet (positioning, `touch-action`, `user-select`) is auto-injected by the built JS — no CSS import needed. Vite/Webpack/Rollup/Next all work.
+The package ships ESM + CJS with bundled TypeScript declarations, and has **zero runtime dependencies**. The one structural stylesheet (positioning, `touch-action`, `pointer-events`) is auto-injected by the built JS — no CSS import needed. Vite/Webpack/Rollup/Next all work.
 
 ## Quickstart
 
@@ -156,7 +156,7 @@ Each handle renders **one invisible anchor `<div>`** (`data-feature`, `pointer-e
 
 | Readout | Shows | While |
 |---|---|---|
-| `EdgeLines` | One line from each item edge straight to the corresponding canvas edge (lines never stop at other items), with the pixel distance in the middle of each line — Figma-style measurement | the item is **moved** |
+| `EdgeLines` | One line from each item edge straight to the corresponding canvas edge (lines never stop at other items), with the pixel distance in the middle of each line — Figma-style measurement. Lines stay vertical/horizontal even when the item is rotated (distances come from the item's unrotated box) | the item is **moved** |
 | `RotateValue` | The current angle (e.g. `45°`) | the item is **rotated** |
 | `ResizeValue` | Live `width × height` in px | the item is **resized** |
 
@@ -190,7 +190,7 @@ function CropHandle() {
 
 ## Styling guide
 
-**The library ships one structural SCSS module** (`.canvas`, `.layer`, `.item`, `.feature` — positioning, `touch-action`, `user-select`, `pointer-events`) and **nothing else**. No colors, no borders, no cursors, no shadows. No Tailwind, no CSS-in-JS, no inline decorative styles.
+**The library ships one structural SCSS module** (`.canvas`, `.layer`, `.item`, `.feature` — positioning, `touch-action`, `pointer-events`) and **nothing else**. No colors, no borders, no cursors, no shadows. No Tailwind, no CSS-in-JS, no inline decorative styles. In particular the library sets **no `user-select`**: text inside items is selectable and any content (buttons, selects, links, inputs…) works exactly as it would outside the canvas — the item is just a positioned box around your DOM.
 
 ### Data-attribute contract (stable, documented)
 
@@ -223,7 +223,7 @@ Cursors for the built-in handles are applied by the canvas root while hovering (
 
 ## Interaction & accessibility
 
-- **Pointer model** — one `onPointerDown/Move/Up` set on the canvas root with pointer capture; hit-testing is geometric (features → item bodies → empty, topmost first; the selected item is always topmost). Item **body clicks are ignored** — selection happens via handles, keyboard focus or the `select` API — so the DOM inside items (buttons, selects, links…) receives clicks untouched. Mouse and touch are unified via pointer events; multi-touch (pinch) is not v1.
+- **Pointer model** — one `onPointerDown/Move/Up` set on the canvas root with pointer capture; hit-testing is geometric (features → item bodies → empty, topmost first; the selected item is always topmost). Item **body clicks are ignored** — selection happens via handles, keyboard focus or the `select` API — so the DOM inside items (buttons, selects, links…) receives clicks untouched and its text is selectable like any other DOM. Mouse and touch are unified via pointer events; multi-touch (pinch) is not v1. (On touch devices the canvas needs `touch-action: none` for drags, which also disables the long-press selection handles — text selection there is desktop/mouse territory.)
 - **Bounds** — items can never leave the canvas: move, resize and keyboard moves clamp to the canvas edges (override individual edges with `constraints`). Programmatic writes (`updateItem`, controlled `items`) are not clamped — consumers own those.
 - **Keyboard** — items are focusable (`tabIndex=0`). When focused: **arrows** move 1px, **Shift+arrows** resize 1px from the top-left, **r/R** rotate ±15°, **Esc** deselects. `Delete` is deliberately not handled — consumers own deletion.
 - **ARIA** — canvas root is `role="group"` with your `aria-label`; items expose `aria-selected`; feature anchors carry `aria-label` ("Move item", …) and `aria-disabled`.

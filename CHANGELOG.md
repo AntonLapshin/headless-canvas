@@ -2,6 +2,16 @@
 
 All notable changes to **headless-canvas** are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-08-05
+
+### Changed
+
+- **Item content is fully interactive (no more `user-select: none`)** — the structural stylesheet no longer blocks selection inside items, so text is selectable like any other DOM and buttons/selects/links/inputs inside an item behave exactly as they would outside the canvas. The item wrapper never intercepted pointer events (body clicks were already pass-through since v0.4.0); the last remaining blocker was the CSS, and it's gone. Consumers who want non-selectable items set `user-select` on their own content.
+
+### Fixed
+
+- **Readouts rotated with their item** — `EdgeLines` (and the `RotateValue`/`ResizeValue` pills) rendered inside the item's rotated coordinate space, so the measurement lines tilted with the item. The readouts are now counter-rotated about the item center and stay axis-aligned in canvas space: edge lines remain vertical/horizontal and value pills stay upright, exactly as if the item were not rotated at all. Distances are still measured from the item's unrotated box to the canvas edges.
+
 ## [0.4.0] — 2026-08-05
 
 ### Changed
@@ -63,3 +73,4 @@ Initial release. Per the library spec (`headless-canvas-spec.md` §13), this sin
 [0.2.0]: https://github.com/AntonLapshin/headless-canvas/releases/tag/v0.2.0
 [0.3.0]: https://github.com/AntonLapshin/headless-canvas/releases/tag/v0.3.0
 [0.4.0]: https://github.com/AntonLapshin/headless-canvas/releases/tag/v0.4.0
+[0.5.0]: https://github.com/AntonLapshin/headless-canvas/releases/tag/v0.5.0

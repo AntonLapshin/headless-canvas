@@ -206,12 +206,32 @@ export const RotateHandle = memo(function RotateHandle({
 /* ------------------------------------------------------------------ */
 
 /**
+ * Counter-rotate a readout so it stays axis-aligned in canvas space even
+ * when its item is rotated. The item rotates around its center (the CSS
+ * default transform-origin), so rotating the readout by the negative angle
+ * around that same center — expressed in the readout's own local
+ * coordinates — cancels the item's rotation exactly: edge lines stay
+ * vertical/horizontal and value pills stay upright, as if the item were
+ * not rotated at all.
+ */
+function unrotate(rotation: number, originX: number, originY: number): React.CSSProperties {
+  if (!rotation) return {};
+  return {
+    transform: `rotate(${-rotation}deg)`,
+    transformOrigin: `${originX}px ${originY}px`,
+  };
+}
+
+/**
  * Edge measurement lines: while the item is being MOVED, draws a line from
  * each edge of the item rectangle straight to the corresponding canvas edge,
  * with the pixel distance in the middle of each line. Lines never stop at
- * other items — the measurement target is always the canvas bound. Renders
- * nothing when idle. Headless: structure + `data-edge-line` /
- * `data-edge-value`; line color/width and number appearance are consumer CSS.
+ * other items — the measurement target is always the canvas bound. Distances
+ * are measured from the item's (unrotated) box, and the whole readout is
+ * counter-rotated so the lines stay vertical/horizontal even when the item
+ * itself is rotated. Renders nothing when idle. Headless: structure +
+ * `data-edge-line` / `data-edge-value`; line color/width and number
+ * appearance are consumer CSS.
  */
 export const EdgeLines = memo(function EdgeLines() {
   const itemId = useItemId();
@@ -254,7 +274,12 @@ export const EdgeLines = memo(function EdgeLines() {
   });
 
   return (
-    <div className={styles.readout} data-feature="edge-lines" aria-hidden="true">
+    <div
+      className={styles.readout}
+      data-feature="edge-lines"
+      aria-hidden="true"
+      style={unrotate(geometry.rotation ?? 0, w / 2, h / 2)}
+    >
       {lines}
     </div>
   );
@@ -269,13 +294,17 @@ export const RotateValue = memo(function RotateValue() {
   const rotating = active?.itemId === itemId && active?.kind === 'rotate';
   if (!rotating) return null;
   const w = geometry.width ?? 0;
+  const h = geometry.height ?? 0;
   const deg = Math.round(normalizeRotation(geometry.rotation ?? 0));
+  // Sits above the item top-center; counter-rotated about the item center so
+  // the pill stays upright and above the item no matter the angle.
+  const top = -44;
   return (
     <div
       className={styles.readout}
       data-feature="rotate-value"
       data-value={deg}
-      style={{ left: w / 2, top: -44 }}
+      style={{ left: w / 2, top, ...unrotate(geometry.rotation ?? 0, 0, h / 2 - top) }}
       aria-hidden="true"
     >
       <span className={styles.edgeValue} data-edge-value>
@@ -300,13 +329,15 @@ export const ResizeValue = memo(function ResizeValue() {
   const offset = 18;
   const dx = direction.includes('e') ? offset : direction.includes('w') ? -offset : 0;
   const dy = direction.includes('s') ? offset : direction.includes('n') ? -offset : 0;
+  const left = p.x + dx;
+  const top = p.y + dy;
   return (
     <div
       className={styles.readout}
       data-feature="resize-value"
       data-width={w}
       data-height={h}
-      style={{ left: p.x + dx, top: p.y + dy }}
+      style={{ left, top, ...unrotate(geometry.rotation ?? 0, w / 2 - left, h / 2 - top) }}
       aria-hidden="true"
     >
       <span className={styles.edgeValue} data-edge-value>

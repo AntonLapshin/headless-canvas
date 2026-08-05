@@ -1,6 +1,6 @@
 {
   "name": "headless-canvas",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Headless, declarative React canvas for placing, moving, resizing, scaling and rotating positioned elements — zero visual styles, one pointer listener, geometric hit-testing. Your DOM stays yours.",
   "license": "MIT",
   "author": "Anton Lapshin",

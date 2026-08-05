@@ -133,6 +133,29 @@ describe('selection', () => {
     expect(onSelect).toHaveBeenLastCalledWith(null);
   });
 
+  it('content stays interactive: a button inside an item gets its clicks, the item is not selected', () => {
+    const onSelect = vi.fn();
+    const onClick = vi.fn();
+    const { root } = renderCanvas(
+      <Canvas width={400} height={300} onSelect={onSelect} aria-label="content canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<MoveHandle />}>
+          <button type="button" onClick={onClick}>
+            Click me
+          </button>
+        </Item>
+      </Canvas>,
+    );
+    const button = screen.getByRole('button', { name: 'Click me' });
+    fireEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    // The canvas did not intercept the click to select the item.
+    expect(onSelect).not.toHaveBeenCalled();
+    // A pointer press on the item body is likewise a pass-through.
+    fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
+    fireEvent.pointerUp(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it('selects via the move handle', () => {
     const onSelect = vi.fn();
     const { root } = renderCanvas(<Fixture onSelect={onSelect} />);
@@ -463,9 +486,38 @@ describe('readout features', () => {
     fireEvent.pointerUp(root, { clientX: 100, clientY: 50, pointerId: 1, buttons: 1 });
   });
 
-  it('RotateValue shows the live angle while rotating', () => {
+  it('EdgeLines stay vertical/horizontal when the item is rotated (as if unrotated)', () => {
     const { root } = renderCanvas(
-      <Canvas width={400} height={300} aria-label="rotate value canvas">
+      <Canvas width={400} height={300} aria-label="edge rotated canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} rotation={30} features={<><MoveHandle /><EdgeLines /></>}>
+          <span>A</span>
+        </Item>
+      </Canvas>,
+    );
+    // Rotated 30° about the center (200, 100): the move handle (item-local
+    // (0,0)) sits at canvas (138.4, 6.7). Drag by +25/+35 → (125, 85).
+    fireEvent.pointerDown(root, { clientX: 138.4, clientY: 6.7, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 163.4, clientY: 41.7, pointerId: 1, buttons: 1 });
+    const lines = document.querySelector('[data-feature="edge-lines"]') as HTMLElement;
+    expect(lines).toBeTruthy();
+    // The readout is counter-rotated about the item center (100, 50 in its
+    // own local space) so the lines stay horizontal/vertical in canvas space.
+    expect(lines.style.transform).toBe('rotate(-30deg)');
+    expect(lines.style.transformOrigin).toBe('100px 50px');
+    // Measurements still come from the unrotated box: (125, 85) 200×100 on a
+    // 400×300 canvas → top 85, bottom 115, left 125, right 75.
+    const value = (edge: string) =>
+      lines.querySelector(`[data-edge-line="${edge}"] [data-edge-value]`)!.textContent;
+    expect(value('top')).toBe('85');
+    expect(value('bottom')).toBe('115');
+    expect(value('left')).toBe('125');
+    expect(value('right')).toBe('75');
+    fireEvent.pointerUp(root, { clientX: 163.4, clientY: 41.7, pointerId: 1, buttons: 1 });
+  });
+
+  it('RotateValue shows the live angle while rotating and stays upright', () => {
+    const { root } = renderCanvas(
+      <Canvas width={400} height={300} aria-label="rotate value rotated canvas">
         <Item id="a" x={100} y={50} width={200} height={100} features={<><RotateHandle /><RotateValue /></>}>
           <span>A</span>
         </Item>
@@ -475,11 +527,15 @@ describe('readout features', () => {
     // Rotate handle at (200, 26); center (200, 100). Drag to (300, 100) → +90°.
     fireEvent.pointerDown(root, { clientX: 200, clientY: 26, pointerId: 1, buttons: 1 });
     fireEvent.pointerMove(root, { clientX: 300, clientY: 100, pointerId: 1, buttons: 1 });
-    const rot = document.querySelector('[data-feature="rotate-value"]')!;
+    const rot = document.querySelector('[data-feature="rotate-value"]') as HTMLElement;
     expect(rot).toBeTruthy();
     expect(rot.textContent).toBe('90°');
     // The value span carries data-edge-value → styled like the edge-line pills.
     expect(rot.querySelector('[data-edge-value]')).toBeTruthy();
+    // Counter-rotated about the item center, which sits at (0, h/2+44) in the
+    // readout's own coordinates (the container itself is at w/2, −44).
+    expect(rot.style.transform).toBe('rotate(-90deg)');
+    expect(rot.style.transformOrigin).toBe('0px 94px');
     fireEvent.pointerUp(root, { clientX: 300, clientY: 100, pointerId: 1, buttons: 1 });
     expect(document.querySelector('[data-feature="rotate-value"]')).toBeNull();
   });
@@ -502,6 +558,28 @@ describe('readout features', () => {
     expect(size.querySelector('[data-edge-value]')).toBeTruthy();
     fireEvent.pointerUp(root, { clientX: 350, clientY: 180, pointerId: 1, buttons: 1 });
     expect(document.querySelector('[data-feature="resize-value"]')).toBeNull();
+  });
+
+  it('ResizeValue stays upright while resizing a rotated item', () => {
+    const { root } = renderCanvas(
+      <Canvas width={400} height={300} aria-label="resize value rotated canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} rotation={30} features={<><ResizeHandle direction="se" /><ResizeValue /></>}>
+          <span>A</span>
+        </Item>
+      </Canvas>,
+    );
+    // se handle of the rotated item: local (200, 100) → canvas (261.6, 193.3).
+    // Drag +40/+30 → 240 × 130.
+    fireEvent.pointerDown(root, { clientX: 261.6, clientY: 193.3, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 301.6, clientY: 223.3, pointerId: 1, buttons: 1 });
+    const size = document.querySelector('[data-feature="resize-value"]') as HTMLElement;
+    expect(size).toBeTruthy();
+    expect(size.textContent).toBe('240 × 130');
+    // Counter-rotated about the item center: the container sits at (258, 148),
+    // the center at (−138, −83) in its own coordinates.
+    expect(size.style.transform).toBe('rotate(-30deg)');
+    expect(size.style.transformOrigin).toBe('-138px -83px');
+    fireEvent.pointerUp(root, { clientX: 301.6, clientY: 223.3, pointerId: 1, buttons: 1 });
   });
 
   it('readouts stay hidden while dragging a different kind', () => {
