@@ -15,7 +15,6 @@ import {
   MoveHandleStyled,
   ResizeHandleStyled,
   RotateHandleStyled,
-  ScaleHandleStyled,
   StyledCanvas,
   StyledItem,
   styledFeatures,
@@ -58,8 +57,7 @@ function StylingDemo(props: { theme: 'light' | 'dark' }) {
         features={
           <>
             <MoveHandleStyled />
-            <ResizeHandleStyled />
-            <ScaleHandleStyled />
+            <ResizeHandleStyled lockRatio />
             <RotateHandleStyled />
           </>
         }
@@ -94,7 +92,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Everything you see is consumer CSS from the default styled kit (stories/styled.tsx): heroicons glyphs, reserved corner positions (move top-left, resize bottom-right, scale top-right, rotate above center), and handles that fade in on hover/selection. The library only rendered data attributes and the interaction. The orange "custom flavor" item shows the kit is plain CSS — override any handle with one class. Wrapping <MoveHandle /> in a styled div cannot break dragging, because hit-testing is geometric, not DOM-based (though the visual should be a *sibling* of the anchor, not a wrapper — the anchor is positioned in item-local coordinates).',
+          'Everything you see is consumer CSS from the default styled kit (stories/styled.tsx): heroicons glyphs, reserved corner positions (move top-left, resize bottom-right, rotate above center), handles that fade in on hover/selection, and Figma-style measurement readouts (edge lines + value pills) during drags. The library only rendered data attributes and the interaction. The orange "custom flavor" item shows the kit is plain CSS — override any handle with one class. Wrapping <MoveHandle /> in a styled div cannot break dragging, because hit-testing is geometric, not DOM-based (though the visual should be a *sibling* of the anchor, not a wrapper — the anchor is positioned in item-local coordinates).',
       },
     },
   },

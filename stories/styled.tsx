@@ -7,7 +7,7 @@
  * stories rely on:
  *
  * 1. Reserved corner positions — Move sits top-left, Resize bottom-right,
- *    Scale top-right, Rotate above top-center. Positioning is pure CSS
+ *    Rotate above top-center. Positioning is pure CSS
  *    (`left/right/top/bottom` pins), so handles stay glued to the corners
  *    with zero JS and zero re-renders.
  * 2. Handles fade in when their item is hovered (or selected / focused).
@@ -16,14 +16,25 @@
  *    positioned div would shift it off its hit region. Siblings keep the
  *    geometric hit-testing and the pixels in the same place.
  *
+ * Readouts (EdgeLines / RotateValue / ResizeValue) are styled purely through
+ * the data-attribute contract — line color/width and the number pills below
+ * are the "style version" of those headless features.
+ *
  * Icons are heroicons (outline, MIT) inlined as SVG paths — zero dependencies.
  */
 
 import { forwardRef } from 'react';
 import { Canvas } from '../src/Canvas';
 import { Item } from '../src/Item';
-import { MoveHandle, ResizeHandle, RotateHandle, ScaleHandle } from '../src/features';
-import type { CanvasHandle, CanvasProps, Direction, ItemProps, ScaleAnchor } from '../src/types';
+import {
+  EdgeLines,
+  MoveHandle,
+  ResizeHandle,
+  ResizeValue,
+  RotateHandle,
+  RotateValue,
+} from '../src/features';
+import type { CanvasHandle, CanvasProps, Direction, ItemProps } from '../src/types';
 
 /* ------------------------------------------------------------------ */
 /* Shared stylesheet (injected once per demo via <style>)              */
@@ -113,7 +124,6 @@ export const hcStyles = `
 /* ---- reserved corner positions ---- */
 .hc-demo .hc-handle--move { left: -9px; top: -9px; } /* top-left */
 .hc-demo .hc-handle--resize { right: -9px; bottom: -9px; } /* bottom-right */
-.hc-demo .hc-handle--scale { right: -9px; top: -9px; } /* top-right */
 .hc-demo .hc-handle--rotate {
   left: 50%;
   top: -30px;
@@ -142,11 +152,33 @@ export const hcStyles = `
 .hc-demo .hc-handle--d-se { right: -9px; bottom: -9px; }
 .hc-demo .hc-handle--d-sw { left: -9px; bottom: -9px; }
 
-/* ---- scale anchor variants (base --scale = ne / top-right) ---- */
-.hc-demo .hc-handle--a-se { right: -9px; bottom: -9px; }
-.hc-demo .hc-handle--a-sw { left: -9px; bottom: -9px; }
-.hc-demo .hc-handle--a-nw { left: -9px; top: -9px; }
-.hc-demo .hc-handle--a-center { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+/* ---- measurement readouts (Figma-style) ---- */
+.hc-demo [data-feature="edge-lines"] {
+  --hc-edge-thickness: 2px; /* the "width of the line" — style-owned */
+  color: var(--hc-measure-line, #e5484d);
+}
+.hc-demo [data-edge-line] { background: currentColor; }
+.hc-demo [data-edge-value] {
+  background: var(--hc-measure-pill, #2b2735);
+  color: #fff;
+  font: 600 11px/1.2 system-ui, sans-serif;
+  padding: 2px 6px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  letter-spacing: 0.2px;
+}
+.hc-demo [data-feature="rotate-value"],
+.hc-demo [data-feature="resize-value"] {
+  color: #fff;
+  font: 600 11px/1.2 system-ui, sans-serif;
+  background: var(--hc-measure-pill, #2b2735);
+  padding: 3px 7px;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  letter-spacing: 0.2px;
+}
+.hc-demo [data-feature="rotate-value"] { transform: translate(-50%, -50%); }
+.hc-demo [data-feature="resize-value"] { transform: translate(-50%, -50%); }
 
 /* ---- shared demo text ---- */
 .hc-demo .hc-label {
@@ -191,8 +223,10 @@ const MoveIcon = makeIcon(
 const ResizeIcon = makeIcon(
   'M9 9L9 4.5M9 9L4.5 9M9 9L3.75 3.75M9 15L9 19.5M9 15L4.5 15M9 15L3.75 20.25M15 9H19.5M15 9V4.5M15 9L20.25 3.75M15 15H19.5M15 15L15 19.5M15 15L20.25 20.25',
 );
-/** heroicons arrow-up-right — diagonal grow (top-right scale). */
-const ScaleIcon = makeIcon('M4.5 19.5L19.5 4.5M19.5 4.5L8.25 4.5M19.5 4.5V15.75');
+/** heroicons link — shown when a resize handle has lockRatio. */
+const LockIcon = makeIcon(
+  'M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244',
+);
 /** heroicons arrow-path — circular arrows = rotate. */
 const RotateIcon = makeIcon(
   'M16.0228 9.34841H21.0154V9.34663M2.98413 19.6444V14.6517M2.98413 14.6517L7.97677 14.6517M2.98413 14.6517L6.16502 17.8347C7.15555 18.8271 8.41261 19.58 9.86436 19.969C14.2654 21.1483 18.7892 18.5364 19.9685 14.1353M4.03073 9.86484C5.21 5.46374 9.73377 2.85194 14.1349 4.03121C15.5866 4.4202 16.8437 5.17312 17.8342 6.1655L21.0154 9.34663M21.0154 4.3558V9.34663',
@@ -246,24 +280,21 @@ export const MoveHandleStyled = () => (
   </>
 );
 
-export const ResizeHandleStyled = ({ direction = 'se' }: { direction?: Direction }) => (
-  <>
-    <div className={`hc-handle hc-handle--resize hc-handle--d-${direction}`} aria-hidden="true">
-      <ResizeIcon />
-    </div>
-    <ResizeHandle direction={direction} />
-  </>
-);
-
-export const ScaleHandleStyled = ({ anchor = 'ne' }: { anchor?: ScaleAnchor }) => (
+export const ResizeHandleStyled = ({
+  direction = 'se',
+  lockRatio = false,
+}: {
+  direction?: Direction;
+  lockRatio?: boolean;
+}) => (
   <>
     <div
-      className={`hc-handle hc-handle--scale${anchor !== 'ne' ? ` hc-handle--a-${anchor}` : ''}`}
+      className={`hc-handle hc-handle--resize hc-handle--d-${direction}${lockRatio ? ' hc-handle--locked' : ''}`}
       aria-hidden="true"
     >
-      <ScaleIcon />
+      {lockRatio ? <LockIcon /> : <ResizeIcon />}
     </div>
-    <ScaleHandle anchor={anchor} />
+    <ResizeHandle direction={direction} lockRatio={lockRatio} />
   </>
 );
 
@@ -276,12 +307,25 @@ export const RotateHandleStyled = ({ offset = 30 }: { offset?: number }) => (
   </>
 );
 
-/** The full affordance set: move (TL) + resize (BR) + scale (TR) + rotate. */
+/* ---- styled readouts (headless features + the kit's measurement CSS) ---- */
+
+/** Edge measurement lines while moving (Figma-style red lines + dark pills). */
+export const EdgeLinesStyled = () => <EdgeLines />;
+
+/** Live rotation angle while rotating. */
+export const RotateValueStyled = () => <RotateValue />;
+
+/** Live width × height while resizing. */
+export const ResizeValueStyled = () => <ResizeValue />;
+
+/** The full affordance set: move (TL) + resize (BR) + rotate + readouts. */
 export const styledFeatures = (
   <>
     <MoveHandleStyled />
     <ResizeHandleStyled />
-    <ScaleHandleStyled />
     <RotateHandleStyled />
+    <EdgeLinesStyled />
+    <RotateValueStyled />
+    <ResizeValueStyled />
   </>
 );

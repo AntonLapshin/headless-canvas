@@ -30,3 +30,26 @@
   position: absolute;
   pointer-events: none; /* hit-testing is geometric, not DOM */
 }
+
+/* Readouts (EdgeLines / RotateValue / ResizeValue): structural positioning
+   only. Colors, line thickness and number appearance are consumer CSS driven
+   by data-feature / data-edge-line / data-edge-value. */
+.readout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.edgeLine {
+  position: absolute;
+  background: currentColor; /* structural default; styled kits override */
+}
+
+.edgeValue {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}

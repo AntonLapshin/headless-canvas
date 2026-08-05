@@ -1,7 +1,8 @@
 /**
- * Built-in feature handles: MoveHandle, ResizeHandle, ScaleHandle, RotateHandle.
+ * Built-in features: handles (MoveHandle, ResizeHandle, RotateHandle) and
+ * readouts (EdgeLines, RotateValue, ResizeValue).
  *
- * Each handle is "headless": it renders ONE invisible anchor `<div>` with a
+ * Handles are "headless": each renders ONE invisible anchor `<div>` with a
  * `data-feature` attribute (plus `data-direction` where relevant), registers
  * its geometric hit region + drag behavior with the canvas, and carries NO
  * visual styles. Consumers restyle by wrapping:
@@ -10,21 +11,26 @@
  *     <div className={styles.handle}><MoveHandle /></div>
  *   );
  *
+ * Readouts are "headless" in the same spirit: they render structure + data
+ * attributes only when their drag is active (EdgeLines while moving,
+ * RotateValue while rotating, ResizeValue while resizing) and carry no visual
+ * styles — line color/width and number appearance are consumer CSS.
+ *
  * This is safe *because* hit-testing is coordinate-based: the DOM tree is
  * presentation only, so wrappers can never break interaction.
  */
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import styles from '../canvas.module.scss';
 import { useInternalCanvas, useItem, useItemId } from '../context';
 import {
   HANDLE_SIZE,
   HIT_HALF,
+  measureEdges,
+  normalizeRotation,
   resizeAnchorPoint,
   resizeCursor,
   rotateAnchorPoint,
-  scaleAnchorPoint,
-  scaleCursor,
 } from '../hit';
 import { useFeatureRegistration, type DragHandler, type FeatureParams } from '../registry';
 import type {
@@ -34,13 +40,11 @@ import type {
   Rect,
   ResizeHandleProps,
   RotateHandleProps,
-  ScaleHandleProps,
 } from '../types';
 
 export type {
   MoveHandleProps,
   ResizeHandleProps,
-  ScaleHandleProps,
   RotateHandleProps,
 } from '../types';
 
@@ -122,10 +126,14 @@ export const MoveHandle = memo(function MoveHandle({ cursor = 'move' }: MoveHand
 
 /**
  * Resize affordance for one edge/corner. `n`/`w` handles keep the opposite
- * edge fixed. No-op on auto-sized items (no explicit box to resize).
+ * edge fixed. With `lockRatio` the item keeps its aspect ratio (corner
+ * handles scale proportionally from the opposite corner; edge handles scale
+ * the perpendicular axis around the item center). No-op on auto-sized items
+ * (no explicit box to resize).
  */
 export const ResizeHandle = memo(function ResizeHandle({
   direction = 'se',
+  lockRatio = false,
   cursor,
 }: ResizeHandleProps) {
   const itemId = useItemId();
@@ -146,50 +154,10 @@ export const ResizeHandle = memo(function ResizeHandle({
       kind="resize"
       point={point}
       hitRect={hitRect}
-      label={`Resize item (${direction})`}
+      label={`Resize item (${direction})${lockRatio ? ', locked ratio' : ''}`}
       direction={direction}
-      params={{ direction }}
+      params={{ direction, lockRatio }}
       cursor={cursor ?? resizeCursor(direction)}
-      locked={geometry.locked === true}
-      disabled={ctx.disabled}
-    />
-  );
-});
-
-/* ------------------------------------------------------------------ */
-/* ScaleHandle                                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Proportional scale affordance. `anchor` picks the corner the handle sits on;
- * the opposite corner stays fixed ('se' keeps the top-left fixed, 'ne' the
- * bottom-left, …), `'center'` keeps the item center fixed.
- */
-export const ScaleHandle = memo(function ScaleHandle({
-  anchor = 'ne',
-  cursor,
-}: ScaleHandleProps) {
-  const itemId = useItemId();
-  const ctx = useInternalCanvas();
-  const { geometry } = useItem();
-  const w = geometry.width ?? 0;
-  const h = geometry.height ?? 0;
-  const point = scaleAnchorPoint(anchor, w, h);
-
-  const hitRect = useCallback((): Rect => {
-    const g = ctx.getItem(itemId);
-    const p = scaleAnchorPoint(anchor, g?.width ?? 0, g?.height ?? 0);
-    return { x: p.x - HIT_HALF, y: p.y - HIT_HALF, width: HIT_HALF * 2, height: HIT_HALF * 2 };
-  }, [ctx, itemId, anchor]);
-
-  return (
-    <FeatureAnchor
-      kind="scale"
-      point={point}
-      hitRect={hitRect}
-      label="Scale item"
-      params={{ anchor }}
-      cursor={cursor ?? scaleCursor(anchor)}
       locked={geometry.locked === true}
       disabled={ctx.disabled}
     />
@@ -228,5 +196,118 @@ export const RotateHandle = memo(function RotateHandle({
       locked={geometry.locked === true}
       disabled={ctx.disabled}
     />
+  );
+});
+
+/* ------------------------------------------------------------------ */
+/* Readouts (passive, no hit region — rendered only during their drag) */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Edge measurement lines: while the item is being MOVED, draws a tiny line
+ * from each edge of the item rectangle toward the nearest target edge (other
+ * item or canvas bound), with the pixel distance in the middle of each line.
+ * Renders nothing when idle. Headless: structure + `data-edge-line` /
+ * `data-edge-value`; line color/width and number appearance are consumer CSS.
+ */
+export const EdgeLines = memo(function EdgeLines() {
+  const itemId = useItemId();
+  const ctx = useInternalCanvas();
+  const { geometry } = useItem();
+  const active = ctx.activeDrag;
+  const moving = active?.itemId === itemId && active?.kind === 'move';
+  const w = geometry.width ?? 0;
+  const h = geometry.height ?? 0;
+
+  const edges = useMemo(() => {
+    if (!moving || w <= 0 || h <= 0) return [];
+    const others = ctx.store.getAll().filter((g) => g.id !== itemId);
+    return measureEdges(geometry, others, {
+      minX: ctx.constraints?.minX ?? 0,
+      minY: ctx.constraints?.minY ?? 0,
+      maxX: ctx.constraints?.maxX ?? ctx.width,
+      maxY: ctx.constraints?.maxY ?? ctx.height,
+    });
+  }, [moving, geometry, itemId, ctx, w, h]);
+
+  if (!moving || edges.length === 0) return null;
+
+  // Item-local line geometry. Lines extend outward from each edge; the label
+  // sits at the midpoint (centered via the styled kit's CSS). Thickness uses
+  // `--hc-edge-thickness` (default 1px) so styled kits can override the line
+  // width without touching the headless geometry.
+  const thickness = 'var(--hc-edge-thickness, 1px)';
+  const lines = edges.map((e) => {
+    const horizontal = e.edge === 'left' || e.edge === 'right';
+    const style: React.CSSProperties = horizontal
+      ? { left: e.edge === 'left' ? -e.distance : w, top: h / 2, width: e.distance, height: thickness }
+      : { left: w / 2, top: e.edge === 'top' ? -e.distance : h, width: thickness, height: e.distance };
+    return (
+      <div key={e.edge} className={styles.edgeLine} data-edge-line={e.edge} style={style}>
+        <span className={styles.edgeValue} data-edge-value>
+          {Math.round(e.distance)}
+        </span>
+      </div>
+    );
+  });
+
+  return (
+    <div className={styles.readout} data-feature="edge-lines" aria-hidden="true">
+      {lines}
+    </div>
+  );
+});
+
+/** Value readout shown while the item is being ROTATED: the current angle. */
+export const RotateValue = memo(function RotateValue() {
+  const itemId = useItemId();
+  const ctx = useInternalCanvas();
+  const { geometry } = useItem();
+  const active = ctx.activeDrag;
+  const rotating = active?.itemId === itemId && active?.kind === 'rotate';
+  if (!rotating) return null;
+  const w = geometry.width ?? 0;
+  const deg = Math.round(normalizeRotation(geometry.rotation ?? 0));
+  return (
+    <div
+      className={styles.readout}
+      data-feature="rotate-value"
+      data-value={deg}
+      style={{ left: w / 2, top: -44 }}
+      aria-hidden="true"
+    >
+      <span className={styles.edgeValue}>{deg}°</span>
+    </div>
+  );
+});
+
+/** Value readout shown while the item is being RESIZED: width × height. */
+export const ResizeValue = memo(function ResizeValue() {
+  const itemId = useItemId();
+  const ctx = useInternalCanvas();
+  const { geometry } = useItem();
+  const active = ctx.activeDrag;
+  const resizing = active?.itemId === itemId && active?.kind === 'resize';
+  if (!resizing) return null;
+  const w = Math.round(geometry.width ?? 0);
+  const h = Math.round(geometry.height ?? 0);
+  const direction = active?.direction ?? 'se';
+  const p = resizeAnchorPoint(direction, w, h);
+  const offset = 18;
+  const dx = direction.includes('e') ? offset : direction.includes('w') ? -offset : 0;
+  const dy = direction.includes('s') ? offset : direction.includes('n') ? -offset : 0;
+  return (
+    <div
+      className={styles.readout}
+      data-feature="resize-value"
+      data-width={w}
+      data-height={h}
+      style={{ left: p.x + dx, top: p.y + dy }}
+      aria-hidden="true"
+    >
+      <span className={styles.edgeValue}>
+        {w} × {h}
+      </span>
+    </div>
   );
 });

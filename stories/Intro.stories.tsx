@@ -1,10 +1,10 @@
 /**
  * Intro — API overview playground.
  *
- * One canvas, three items: a full-featured item (move + resize + scale +
- * rotate), a move-only item, and an auto-sized item. Play with the controls:
- * scale zooms the whole design space, snapToGrid snaps dragged geometry.
- * Showcases the default styled kit (stories/styled.tsx).
+ * One canvas, three items: a full-featured item (move + resize + rotate +
+ * measurement readouts), a move-only item, and an auto-sized item. Play with
+ * the controls: scale zooms the whole design space, snapToGrid snaps dragged
+ * geometry. Showcases the default styled kit (stories/styled.tsx).
  */
 
 import type { Meta, StoryObj } from '@storybook/react';
@@ -33,7 +33,7 @@ function IntroDemo(props: { scale?: number; snapToGrid?: number; disabled?: bool
           <div>
             <strong>Full-featured item</strong>
             <br />
-            move · resize · scale · rotate
+            move · resize · rotate · readouts
           </div>
         </div>
       </StyledItem>
@@ -75,7 +75,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Headless, declarative React canvas. Everything is draggable: grab any item body (MoveHandle covers the whole item), drag the bottom-right corner to resize, the top-right handle scales proportionally, the top handle rotates. Handles fade in on hover/selection; items stay inside the canvas. The library renders no visuals — this story styles its own items with the default styled kit (plain consumer CSS).',
+          'Headless, declarative React canvas. Everything is draggable: grab any item body (MoveHandle covers the whole item), drag the bottom-right corner to resize (lockRatio keeps the aspect), the top handle rotates. While dragging you get Figma-style readouts — edge measurement lines, live size and angle. Handles fade in on hover/selection; items stay inside the canvas. The library renders no visuals — this story styles its own items with the default styled kit (plain consumer CSS).',
       },
     },
   },

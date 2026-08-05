@@ -48,6 +48,8 @@ export interface DragOptions {
   /** Minimum sizes for resize/scale (defaults to 8 when unset). */
   minWidth?: number;
   minHeight?: number;
+  /** Preserve the item's aspect ratio while resizing (see `ResizeHandle`). */
+  lockRatio?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -83,6 +85,11 @@ export function moveGeometry(
  * shift x/y so the opposite edge stays fixed. The moving edge(s) snap to the
  * grid; min sizes and bounds constraints are enforced.
  *
+ * With `lockRatio` the item keeps its aspect ratio: corner handles scale
+ * proportionally from the opposite corner (same math as `scaleGeometry`),
+ * edge handles scale the perpendicular axis proportionally around the item
+ * center.
+ *
  * Auto-sized items (width or height undefined) are a documented no-op: they
  * have no explicit box to resize.
  */
@@ -94,6 +101,7 @@ export function resizeGeometry(
   opts: DragOptions,
 ): Partial<ItemGeometry> {
   if (item.width == null || item.height == null) return {};
+  if (opts.lockRatio) return resizeLocked(item, direction, dx, dy, opts);
   const c = opts.constraints;
   const minW = c?.minWidth ?? opts.minWidth ?? DEFAULT_MIN_SIZE;
   const minH = c?.minHeight ?? opts.minHeight ?? DEFAULT_MIN_SIZE;
@@ -139,6 +147,86 @@ export function resizeGeometry(
     if (c.maxY != null) height = Math.min(height, c.maxY - y);
     width = Math.max(width, minW);
     height = Math.max(height, minH);
+  }
+
+  return { x, y, width, height };
+}
+
+/**
+ * Ratio-preserving resize (`lockRatio`). Corners delegate to `scaleGeometry`
+ * (opposite corner fixed); edges keep the opposite edge fixed on the dragged
+ * axis and scale the perpendicular axis proportionally around the item center.
+ */
+function resizeLocked(
+  item: ItemGeometry,
+  direction: Direction,
+  dx: number,
+  dy: number,
+  opts: DragOptions,
+): Partial<ItemGeometry> {
+  if (item.width == null || item.height == null || item.width <= 0) return {};
+  const c = opts.constraints;
+  const minW = c?.minWidth ?? opts.minWidth ?? DEFAULT_MIN_SIZE;
+  const minH = c?.minHeight ?? opts.minHeight ?? DEFAULT_MIN_SIZE;
+  const grid = opts.snapToGrid;
+  const sx = item.x;
+  const sy = item.y;
+  const sw = item.width;
+  const sh = item.height;
+  const ratio = sh / sw;
+
+  // Corners: proportional from the opposite corner (identical to ScaleHandle).
+  if (direction.length === 2) {
+    return scaleGeometry(item, direction as ScaleAnchor, dx, dy, opts);
+  }
+
+  const east = direction.includes('e');
+  const west = direction.includes('w');
+  const south = direction.includes('s');
+  const north = direction.includes('n');
+
+  let x = sx;
+  let y = sy;
+  let width = sw;
+  let height = sh;
+
+  if (east || west) {
+    // Dragged axis: width. The opposite vertical edge stays fixed.
+    const right = sx + sw;
+    if (east) {
+      width = snap(sx + sw + dx, grid) - sx;
+      if (c?.maxX != null) width = Math.min(width, c.maxX - sx);
+    } else {
+      x = clamp(snap(sx + dx, grid), c?.minX ?? -Infinity, right - minW);
+      width = right - x;
+    }
+    // Perpendicular axis scales by the ratio, centered on the item.
+    if (minH / ratio > width) width = minH / ratio; // keep ratio while honoring minH
+    width = Math.max(width, minW);
+    height = width * ratio;
+    y = sy + (sh - height) / 2;
+    if (c?.minY != null) y = Math.max(y, c.minY);
+    if (c?.maxY != null) y = Math.min(y, c.maxY - height);
+    width = Math.max(width, minW);
+    if (west) x = right - width;
+  } else {
+    // Dragged axis: height. The opposite horizontal edge stays fixed.
+    const bottom = sy + sh;
+    if (south) {
+      height = snap(sy + sh + dy, grid) - sy;
+      if (c?.maxY != null) height = Math.min(height, c.maxY - sy);
+    } else {
+      y = clamp(snap(sy + dy, grid), c?.minY ?? -Infinity, bottom - minH);
+      height = bottom - y;
+    }
+    if (minW * ratio > height) height = minW * ratio; // keep ratio while honoring minW
+    height = Math.max(height, minH);
+    width = height / ratio;
+    x = sx + (sw - width) / 2;
+    if (c?.minX != null) x = Math.max(x, c.minX);
+    if (c?.maxX != null) x = Math.min(x, c.maxX - width);
+    height = Math.max(height, minH);
+    if (north) y = bottom - height;
   }
 
   return { x, y, width, height };
@@ -273,28 +361,6 @@ export function resizeAnchorPoint(direction: Direction, w: number, h: number): {
   }
 }
 
-/** Anchor point (item-local) for a scale handle (the corner it sits on). */
-export function scaleAnchorPoint(anchor: ScaleAnchor, w: number, h: number): { x: number; y: number } {
-  switch (anchor) {
-    case 'nw':
-      return { x: 0, y: 0 };
-    case 'ne':
-      return { x: w, y: 0 };
-    case 'sw':
-      return { x: 0, y: h };
-    case 'center':
-      return { x: w / 2, y: h / 2 };
-    case 'se':
-    default:
-      return { x: w, y: h };
-  }
-}
-
-/** Default cursor per scale anchor. */
-export function scaleCursor(anchor: ScaleAnchor): string {
-  return anchor === 'ne' || anchor === 'sw' ? 'nesw-resize' : 'nwse-resize';
-}
-
 /** Anchor point (item-local) for a rotate handle (above the top-center). */
 export function rotateAnchorPoint(w: number, offset: number): { x: number; y: number } {
   return { x: w / 2, y: -offset };
@@ -317,6 +383,95 @@ export function resizeCursor(direction: Direction): string {
     default:
       return 'nwse-resize';
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Edge measurement (EdgeLines readout)                                */
+/* ------------------------------------------------------------------ */
+
+/** The four item edges a measurement line can run along. */
+export type EdgeSide = 'top' | 'bottom' | 'left' | 'right';
+
+/** A single edge measurement: which edge + the distance to its target. */
+export interface EdgeMeasurement {
+  edge: EdgeSide;
+  /** Distance in logical px from the item's edge to the target edge (> 0). */
+  distance: number;
+}
+
+/** Bounds used as the fallback measurement target (usually the canvas edges). */
+export interface MeasureBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * Figma-style edge measurement: for each of the four edges, find the nearest
+ * *target edge* in that direction — another item's facing edge (when the
+ * perpendicular spans overlap) or the canvas/constraints bound, whichever is
+ * nearer. Edges flush against a target (distance 0) are omitted.
+ */
+export function measureEdges(
+  item: ItemGeometry,
+  others: ItemGeometry[],
+  bounds: MeasureBounds,
+): EdgeMeasurement[] {
+  const w = item.width ?? 0;
+  const h = item.height ?? 0;
+  const left = item.x;
+  const top = item.y;
+  const right = left + w;
+  const bottom = top + h;
+  const result: EdgeMeasurement[] = [];
+
+  const overlapsX = (o: ItemGeometry): boolean => {
+    const ow = o.width ?? 0;
+    return o.x < right && o.x + ow > left;
+  };
+  const overlapsY = (o: ItemGeometry): boolean => {
+    const oh = o.height ?? 0;
+    return o.y < bottom && o.y + oh > top;
+  };
+
+  // Top: nearest bottom edge of an item above (horizontal overlap), else bound.
+  let topDist = top - bounds.minY;
+  for (const o of others) {
+    if (!overlapsX(o)) continue;
+    const ob = (o.y ?? 0) + (o.height ?? 0);
+    if (ob <= top && top - ob < topDist) topDist = top - ob;
+  }
+  if (topDist > 0) result.push({ edge: 'top', distance: topDist });
+
+  // Bottom: nearest top edge of an item below, else bound.
+  let bottomDist = bounds.maxY - bottom;
+  for (const o of others) {
+    if (!overlapsX(o)) continue;
+    const ot = o.y ?? 0;
+    if (ot >= bottom && ot - bottom < bottomDist) bottomDist = ot - bottom;
+  }
+  if (bottomDist > 0) result.push({ edge: 'bottom', distance: bottomDist });
+
+  // Left: nearest right edge of an item to the left (vertical overlap), else bound.
+  let leftDist = left - bounds.minX;
+  for (const o of others) {
+    if (!overlapsY(o)) continue;
+    const or_ = (o.x ?? 0) + (o.width ?? 0);
+    if (or_ <= left && left - or_ < leftDist) leftDist = left - or_;
+  }
+  if (leftDist > 0) result.push({ edge: 'left', distance: leftDist });
+
+  // Right: nearest left edge of an item to the right, else bound.
+  let rightDist = bounds.maxX - right;
+  for (const o of others) {
+    if (!overlapsY(o)) continue;
+    const ol = o.x ?? 0;
+    if (ol >= right && ol - right < rightDist) rightDist = ol - right;
+  }
+  if (rightDist > 0) result.push({ edge: 'right', distance: rightDist });
+
+  return result;
 }
 
 /* ------------------------------------------------------------------ */

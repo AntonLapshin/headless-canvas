@@ -1,8 +1,8 @@
 /**
  * headless-canvas — public entry point.
  *
- * A headless, declarative React canvas for placing, moving, resizing, scaling
- * and rotating positioned elements. Zero visual styles: interaction behavior
+ * A headless, declarative React canvas for placing, moving, resizing and
+ * rotating positioned elements. Zero visual styles: interaction behavior
  * is complete, appearance is 100% consumer-owned via the data-attribute
  * contract.
  */
@@ -12,13 +12,14 @@ export { Item } from './Item';
 export {
   MoveHandle,
   ResizeHandle,
-  ScaleHandle,
   RotateHandle,
+  EdgeLines,
+  RotateValue,
+  ResizeValue,
 } from './features';
 export type {
   MoveHandleProps,
   ResizeHandleProps,
-  ScaleHandleProps,
   RotateHandleProps,
 } from './features';
 export { useCanvas, useItem, useItemId } from './context';
@@ -35,10 +36,20 @@ export {
   rotateToGeometry,
   normalizeRotation,
   toItemLocal,
+  measureEdges,
   DEFAULT_MIN_SIZE,
 } from './hit';
-export type { DragOptions, HitResult, HitTestInput, FeatureHit } from './hit';
 export type {
+  DragOptions,
+  HitResult,
+  HitTestInput,
+  FeatureHit,
+  EdgeMeasurement,
+  EdgeSide,
+  MeasureBounds,
+} from './hit';
+export type {
+  ActiveDrag,
   CanvasHandle,
   CanvasProps,
   Constraints,

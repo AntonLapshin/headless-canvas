@@ -8,6 +8,7 @@ import {
   clamp,
   DEFAULT_MIN_SIZE,
   hitTest,
+  measureEdges,
   moveGeometry,
   normalizeRotation,
   resizeGeometry,
@@ -230,6 +231,108 @@ describe('scaleGeometry', () => {
     expect(center.height).toBe(200);
     expect(center.x).toBe(200 - 200);
     expect(center.y).toBe(100 - 100);
+  });
+});
+
+describe('resizeGeometry lockRatio', () => {
+  it('se corner keeps the ratio, top-left fixed (like the old ScaleHandle)', () => {
+    const r = resizeGeometry(item(), 'se', 50, 30, { lockRatio: true });
+    // 200×100 at ratio 0.5 → width 250, height 125; x/y unchanged (omitted).
+    expect(r.width).toBe(250);
+    expect(r.height).toBe(125);
+    expect(r.x).toBeUndefined();
+    expect(r.y).toBeUndefined();
+  });
+
+  it('ne corner keeps the ratio, bottom-left fixed', () => {
+    const r = resizeGeometry(item(), 'ne', 50, 0, { lockRatio: true });
+    expect(r.width).toBe(250);
+    expect(r.height).toBe(125);
+    expect(r.y).toBe(150 - 125); // bottom edge fixed at 150
+    expect(r.x).toBeUndefined(); // left edge fixed
+  });
+
+  it('e edge scales the perpendicular axis proportionally around the center', () => {
+    const r = resizeGeometry(item(), 'e', 40, 0, { lockRatio: true });
+    expect(r.width).toBe(240);
+    expect(r.height).toBe(120); // ratio 0.5
+    expect(r.y).toBe(50 + (100 - 120) / 2); // vertical center fixed
+  });
+
+  it('w edge keeps the right edge fixed and centers vertically', () => {
+    const r = resizeGeometry(item(), 'w', -40, 0, { lockRatio: true });
+    expect(r.width).toBe(240);
+    expect(r.height).toBe(120);
+    expect(r.x).toBe(100 + 200 - 240); // right edge fixed at 300
+    expect(r.y).toBe(40);
+  });
+
+  it('s edge scales the perpendicular axis proportionally around the center', () => {
+    const r = resizeGeometry(item(), 's', 0, 40, { lockRatio: true });
+    expect(r.height).toBe(140);
+    expect(r.width).toBe(280); // 140 / 0.5
+    expect(r.x).toBe(100 + (200 - 280) / 2); // horizontal center fixed
+  });
+
+  it('n edge keeps the bottom edge fixed and centers horizontally', () => {
+    const r = resizeGeometry(item(), 'n', 0, -40, { lockRatio: true });
+    expect(r.height).toBe(140);
+    expect(r.width).toBe(280);
+    expect(r.y).toBe(50 + 100 - 140); // bottom edge fixed at 150
+    expect(r.x).toBe(60);
+  });
+
+  it('respects min sizes while keeping the ratio', () => {
+    const r = resizeGeometry(item(), 'se', -500, -500, { lockRatio: true });
+    // ratio 0.5: height min 8 forces width min 16.
+    expect(r.width).toBe(16);
+    expect(r.height).toBe(8);
+  });
+
+  it('clamps into bounds constraints', () => {
+    const c = { constraints: { maxX: 400, maxY: 300 } };
+    const r = resizeGeometry(item(), 'e', 500, 0, { lockRatio: true, ...c });
+    expect(r.width).toBeLessThanOrEqual(400 - item().x);
+    expect(r.height).toBeLessThanOrEqual(300 - item().y);
+    expect(r.width! / r.height!).toBeCloseTo(2, 5); // ratio preserved
+  });
+});
+
+describe('measureEdges', () => {
+  const bounds = { minX: 0, minY: 0, maxX: 400, maxY: 300 };
+
+  it('measures distances to the canvas bounds when alone', () => {
+    // 200×100 at (100, 50) on a 400×300 canvas.
+    const edges = measureEdges(item(), [], bounds);
+    expect(edges).toEqual([
+      { edge: 'top', distance: 50 },
+      { edge: 'bottom', distance: 150 },
+      { edge: 'left', distance: 100 },
+      { edge: 'right', distance: 100 },
+    ]);
+  });
+
+  it('prefers the nearest other item edge over the canvas bound', () => {
+    // Item at (100, 50) 200×100; a 60×30 item sits above, overlapping x.
+    const above = item({ id: 'above', x: 130, y: 0, width: 60, height: 30 });
+    const edges = measureEdges(item(), [above], bounds);
+    const top = edges.find((e) => e.edge === 'top')!;
+    expect(top.distance).toBe(50 - 30); // above bottom = 30, not the canvas 50
+  });
+
+  it('skips edges flush against a target (distance 0)', () => {
+    const flush = item({ id: 'flush', x: 100, y: 150, width: 200, height: 100 });
+    // The flush item sits directly below: its top == our bottom (150).
+    const edges = measureEdges(item(), [flush], bounds);
+    expect(edges.find((e) => e.edge === 'bottom')).toBeUndefined();
+  });
+
+  it('only counts items with perpendicular overlap', () => {
+    // Item at (100, 50) 200×100; an item above but far to the left (no x overlap).
+    const offset = item({ id: 'offset', x: 0, y: 0, width: 40, height: 40 });
+    const edges = measureEdges(item(), [offset], bounds);
+    // offset right edge = 40, item left = 100 → no overlap → top stays at canvas 50.
+    expect(edges.find((e) => e.edge === 'top')!.distance).toBe(50);
   });
 });
 

@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { Canvas } from '../src/Canvas';
 import { Item } from '../src/Item';
-import { MoveHandle, ResizeHandle, RotateHandle, ScaleHandle } from '../src/features';
+import { EdgeLines, MoveHandle, ResizeHandle, RotateHandle, RotateValue, ResizeValue } from '../src/features';
 import styles from '../src/canvas.module.scss';
 import type { CanvasHandle, ItemGeometry } from '../src/types';
 import { emitResize } from './setup';
@@ -267,76 +267,179 @@ describe('resize drag', () => {
   });
 });
 
-describe('scale drag', () => {
-  it('scales proportionally from the se anchor', () => {
+describe('resize with lockRatio', () => {
+  it('se corner keeps the aspect ratio, top-left fixed', () => {
     const { holder, ref } = makeRef();
     const { root } = renderCanvas(
-      <Canvas width={400} height={300} ref={ref} aria-label="scale canvas">
-        <Item id="a" x={100} y={50} width={200} height={100} features={<ScaleHandle anchor="se" />}>
+      <Canvas width={400} height={300} ref={ref} aria-label="locked resize canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<ResizeHandle direction="se" lockRatio />}>
           <span>A</span>
         </Item>
       </Canvas>,
     );
-    drag(root, { x: 300, y: 150 }, { x: 350, y: 150 }); // dx 50
+    // se handle at (300, 150); drag +50 wide → width 250, height 125 (ratio 0.5).
+    drag(root, { x: 300, y: 150 }, { x: 350, y: 150 });
     const a = holder.current!.getItems()[0];
     expect(a.width).toBe(250);
-    expect(a.height).toBe(125); // ratio 0.5
+    expect(a.height).toBe(125);
     expect(a.x).toBe(100);
     expect(a.y).toBe(50);
   });
 
-  it('defaults to the ne anchor (top-right): bottom-left corner stays fixed', () => {
+  it('ne corner keeps the bottom-left corner fixed', () => {
     const { holder, ref } = makeRef();
     const { root } = renderCanvas(
-      <Canvas width={400} height={300} ref={ref} aria-label="scale ne canvas">
-        <Item id="a" x={100} y={50} width={200} height={100} features={<ScaleHandle />}>
+      <Canvas width={400} height={300} ref={ref} aria-label="locked ne canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<ResizeHandle direction="ne" lockRatio />}>
           <span>A</span>
         </Item>
       </Canvas>,
     );
-    // ne handle at local (200, 0) → canvas (300, 50); drag +50 wide.
+    // ne handle at (300, 50); drag +50 → width 250, height 125; bottom edge stays at 150.
     drag(root, { x: 300, y: 50 }, { x: 350, y: 50 });
     const a = holder.current!.getItems()[0];
     expect(a.width).toBe(250);
     expect(a.height).toBe(125);
-    expect(a.x).toBe(100); // left edge fixed (bottom-left corner stays put)
+    expect(a.x).toBe(100);
     expect(a.y).toBe(25); // bottom edge fixed at 150 → top moves up
   });
 
-  it('clamps scale growth to the canvas bounds (default constraints)', () => {
+  it('e edge keeps the vertical center fixed', () => {
     const { holder, ref } = makeRef();
     const { root } = renderCanvas(
-      <Canvas width={400} height={300} ref={ref} aria-label="scale bounds canvas">
-        <Item id="a" x={100} y={50} width={200} height={100} features={<ScaleHandle anchor="se" />}>
+      <Canvas width={400} height={300} ref={ref} aria-label="locked e canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<ResizeHandle direction="e" lockRatio />}>
           <span>A</span>
         </Item>
       </Canvas>,
     );
-    // Drag the se corner far past the right edge: dx 300 → width would be 500,
-    // but the right edge may not pass 400 and the bottom not pass 300.
-    drag(root, { x: 300, y: 150 }, { x: 600, y: 150 });
+    // e handle at (300, 100); drag +40 → width 240, height 120, y centered at 40.
+    drag(root, { x: 300, y: 100 }, { x: 340, y: 100 });
     const a = holder.current!.getItems()[0];
-    expect(a.width).toBe(300); // maxX - x = 400 - 100
-    expect(a.height).toBe(150); // keeps the ratio 0.5
-    expect(a.x).toBe(100);
-    expect(a.y).toBe(50);
+    expect(a.width).toBe(240);
+    expect(a.height).toBe(120);
+    expect(a.y).toBe(40); // (100 - 120)/2 = -10 from 50
   });
 
-  it('center anchor keeps the center fixed', () => {
+  it('clamps locked growth to the canvas bounds, keeping the ratio', () => {
     const { holder, ref } = makeRef();
     const { root } = renderCanvas(
-      <Canvas width={400} height={300} ref={ref} aria-label="scale center canvas">
-        <Item id="a" x={100} y={50} width={200} height={100} features={<ScaleHandle anchor="center" />}>
+      <Canvas width={400} height={300} ref={ref} aria-label="locked bounds canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<ResizeHandle direction="se" lockRatio />}>
           <span>A</span>
         </Item>
       </Canvas>,
     );
-    drag(root, { x: 200, y: 100 }, { x: 250, y: 100 }); // dx 50 → width +100
+    // Drag the se corner far past the right edge: width capped at 300 (maxX - x),
+    // height keeps the ratio → 150.
+    drag(root, { x: 300, y: 150 }, { x: 600, y: 150 });
     const a = holder.current!.getItems()[0];
     expect(a.width).toBe(300);
     expect(a.height).toBe(150);
-    expect(a.x).toBe(50); // center x stays 200
-    expect(a.y).toBe(25); // center y stays 100
+    expect(a.x).toBe(100);
+    expect(a.y).toBe(50);
+  });
+});
+
+describe('readout features', () => {
+  it('EdgeLines appears while moving and disappears on pointer up', () => {
+    const { root } = renderCanvas(
+      <Canvas width={400} height={300} aria-label="edge canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<><MoveHandle /><EdgeLines /></>}>
+          <span>A</span>
+        </Item>
+      </Canvas>,
+    );
+    expect(document.querySelector('[data-feature="edge-lines"]')).toBeNull();
+    // Move the item by +25/+35 → (125, 85). Canvas 400×300: top 85, bottom 115,
+    // left 125, right 75.
+    fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 175, clientY: 110, pointerId: 1, buttons: 1 });
+    const lines = document.querySelector('[data-feature="edge-lines"]')!;
+    expect(lines).toBeTruthy();
+    const edges = [...document.querySelectorAll('[data-edge-line]')];
+    expect(edges).toHaveLength(4);
+    const value = (edge: string) =>
+      lines.querySelector(`[data-edge-line="${edge}"] [data-edge-value]`)!.textContent;
+    expect(value('top')).toBe('85');
+    expect(value('bottom')).toBe('115');
+    expect(value('left')).toBe('125');
+    expect(value('right')).toBe('75');
+    fireEvent.pointerUp(root, { clientX: 175, clientY: 110, pointerId: 1, buttons: 1 });
+    expect(document.querySelector('[data-feature="edge-lines"]')).toBeNull();
+  });
+
+  it('EdgeLines prefers the nearest item edge over the canvas bound', () => {
+    const { root } = renderCanvas(
+      <Canvas width={400} height={300} aria-label="edge neighbor canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<><MoveHandle /><EdgeLines /></>}>
+          <span>A</span>
+        </Item>
+        <Item id="b" x={130} y={10} width={60} height={30}>
+          <span>B</span>
+        </Item>
+      </Canvas>,
+    );
+    // Item b's bottom = 40; item a starts at top 50 → distance 10 beats canvas 50.
+    fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 155, clientY: 75, pointerId: 1, buttons: 1 }); // tiny move
+    const lines = document.querySelector('[data-feature="edge-lines"]')!;
+    const top = lines.querySelector('[data-edge-line="top"] [data-edge-value]')!.textContent;
+    expect(top).toBe('10');
+    fireEvent.pointerUp(root, { clientX: 155, clientY: 75, pointerId: 1, buttons: 1 });
+  });
+
+  it('RotateValue shows the live angle while rotating', () => {
+    const { root } = renderCanvas(
+      <Canvas width={400} height={300} aria-label="rotate value canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<><RotateHandle /><RotateValue /></>}>
+          <span>A</span>
+        </Item>
+      </Canvas>,
+    );
+    expect(document.querySelector('[data-feature="rotate-value"]')).toBeNull();
+    // Rotate handle at (200, 26); center (200, 100). Drag to (300, 100) → +90°.
+    fireEvent.pointerDown(root, { clientX: 200, clientY: 26, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 300, clientY: 100, pointerId: 1, buttons: 1 });
+    const rot = document.querySelector('[data-feature="rotate-value"]')!;
+    expect(rot).toBeTruthy();
+    expect(rot.textContent).toBe('90°');
+    fireEvent.pointerUp(root, { clientX: 300, clientY: 100, pointerId: 1, buttons: 1 });
+    expect(document.querySelector('[data-feature="rotate-value"]')).toBeNull();
+  });
+
+  it('ResizeValue shows width × height while resizing', () => {
+    const { root } = renderCanvas(
+      <Canvas width={400} height={300} aria-label="resize value canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<><ResizeHandle direction="se" /><ResizeValue /></>}>
+          <span>A</span>
+        </Item>
+      </Canvas>,
+    );
+    expect(document.querySelector('[data-feature="resize-value"]')).toBeNull();
+    // se handle at (300, 150); drag +50/+30 → 250 × 130.
+    fireEvent.pointerDown(root, { clientX: 300, clientY: 150, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 350, clientY: 180, pointerId: 1, buttons: 1 });
+    const size = document.querySelector('[data-feature="resize-value"]')!;
+    expect(size).toBeTruthy();
+    expect(size.textContent).toBe('250 × 130');
+    fireEvent.pointerUp(root, { clientX: 350, clientY: 180, pointerId: 1, buttons: 1 });
+    expect(document.querySelector('[data-feature="resize-value"]')).toBeNull();
+  });
+
+  it('readouts stay hidden while dragging a different kind', () => {
+    const { root } = renderCanvas(
+      <Canvas width={400} height={300} aria-label="readout kind canvas">
+        <Item id="a" x={100} y={50} width={200} height={100} features={<><MoveHandle /><RotateValue /><ResizeValue /></>}>
+          <span>A</span>
+        </Item>
+      </Canvas>,
+    );
+    fireEvent.pointerDown(root, { clientX: 150, clientY: 75, pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { clientX: 160, clientY: 85, pointerId: 1, buttons: 1 });
+    expect(document.querySelector('[data-feature="rotate-value"]')).toBeNull();
+    expect(document.querySelector('[data-feature="resize-value"]')).toBeNull();
+    fireEvent.pointerUp(root, { clientX: 160, clientY: 85, pointerId: 1, buttons: 1 });
   });
 });
 

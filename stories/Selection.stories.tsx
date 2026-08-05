@@ -4,7 +4,7 @@
  * Controlled — parent round-trip via items/onItemsChange with a live readout.
  *
  * All stories use the default styled kit: selection rings + corner handles
- * (move top-left, resize bottom-right, scale top-right, rotate above center).
+ * (move top-left, resize bottom-right, rotate above center) + drag readouts.
  */
 
 import type { Meta, StoryObj } from '@storybook/react';

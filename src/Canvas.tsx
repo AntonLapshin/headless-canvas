@@ -22,12 +22,11 @@ import {
   normalizeRotation,
   resizeGeometry,
   rotateToGeometry,
-  scaleGeometry,
 } from './hit';
 import type { DragContext, FeatureEntry } from './registry';
 import { FeatureRegistry } from './registry';
 import { GeometryStore } from './store';
-import type { CanvasHandle, CanvasProps, Constraints, DragKind, ItemGeometry } from './types';
+import type { ActiveDrag, CanvasHandle, CanvasProps, Constraints, DragKind, ItemGeometry } from './types';
 
 /** rAF with a setTimeout fallback (jsdom / SSR environments). */
 const raf = (cb: () => void): number =>
@@ -94,6 +93,7 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [hoveredCursor, setHoveredCursor] = useState<string | undefined>(undefined);
+  const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const selectedId = selectedIdProp !== undefined ? selectedIdProp : internalSelectedId;
 
   const select = useCallback(
@@ -197,10 +197,10 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
         case 'resize':
           // Auto-sized items have no explicit box to resize (documented no-op).
           if (store.isAutoSized(itemId)) return undefined;
-          return resizeGeometry(start, entry.params?.direction ?? 'se', dx, dy, opts);
-        case 'scale':
-          if (store.isAutoSized(itemId)) return undefined;
-          return scaleGeometry(start, entry.params?.anchor ?? 'se', dx, dy, opts);
+          return resizeGeometry(start, entry.params?.direction ?? 'se', dx, dy, {
+            ...opts,
+            lockRatio: entry.params?.lockRatio,
+          });
         case 'rotate': {
           const w = start.width ?? 0;
           const h = start.height ?? 0;
@@ -221,15 +221,17 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
     (entry: FeatureEntry, itemId: string, logical: { x: number; y: number }, pointerId: number, currentTarget: HTMLElement) => {
       const start = store.get(itemId);
       if (!start) return;
+      const kind = entry.kind as DragKind;
       dragRef.current = {
         entry,
         itemId,
-        kind: entry.kind as DragKind,
+        kind,
         start,
         startLogical: logical,
         pointerId,
       };
-      onDragStartRef.current?.(itemId, entry.kind as DragKind);
+      setActiveDrag({ itemId, kind, direction: entry.params?.direction });
+      onDragStartRef.current?.(itemId, kind);
       try {
         currentTarget.setPointerCapture?.(pointerId);
       } catch {
@@ -301,6 +303,7 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
       const session = dragRef.current;
       if (!session || e.pointerId !== session.pointerId) return;
       dragRef.current = null;
+      setActiveDrag(null);
       onDragEndRef.current?.(session.itemId, session.kind);
       notify(true); // final, exact payload
     },
@@ -428,6 +431,7 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
       scale,
       selectedId,
       hoveredId,
+      activeDrag,
       select,
       getItem: (id: string) => store.get(id),
       updateItem,
@@ -446,6 +450,7 @@ function CanvasComponent(props: CanvasProps, ref: React.Ref<CanvasHandle>) {
       scale,
       selectedId,
       hoveredId,
+      activeDrag,
       select,
       updateItem,
       snap,

@@ -1,8 +1,8 @@
 /**
  * Move — MoveHandle, locked items, constraints, snap grid.
- * Resize — all 8 directions, min-size clamp, auto-sized no-op.
- * Scale — anchor se vs center.
+ * Resize — all 8 directions, min-size clamp, auto-sized no-op, lockRatio.
  * Rotate — offset.
+ * Measure — EdgeLines / RotateValue / ResizeValue readouts during drags.
  *
  * All stories use the default styled kit; handles fade in on hover/selection.
  * Items are clamped to the canvas bounds by default (no constraints prop
@@ -10,13 +10,12 @@
  */
 
 import type { Meta, StoryObj } from '@storybook/react';
-import { expect } from '@storybook/test';
-import { boxStyle, dragTo, getHandle, useCanvasHandle } from './helpers';
+import { expect, fireEvent } from '@storybook/test';
+import { boxStyle, dragTo, flush, getHandle, useCanvasHandle } from './helpers';
 import {
   MoveHandleStyled,
   ResizeHandleStyled,
   RotateHandleStyled,
-  ScaleHandleStyled,
   StyledCanvas,
   StyledItem,
   styledFeatures,
@@ -171,34 +170,42 @@ export const Resize: StoryObj<typeof moveMeta> = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Scale                                                               */
+/* Resize with lockRatio                                               */
 /* ------------------------------------------------------------------ */
 
-function ScaleDemo() {
+function ResizeLockedDemo() {
   const ref = useCanvasHandle();
   return (
-    <StyledCanvas ref={ref} width={560} height={380} aria-label="Scale canvas">
-      <StyledItem id="se" x={90} y={90} width={180} height={120} features={<ScaleHandleStyled anchor="se" />}>
+    <StyledCanvas ref={ref} width={560} height={380} aria-label="Resize locked canvas">
+      <StyledItem
+        id="free"
+        x={90}
+        y={90}
+        width={180}
+        height={120}
+        features={<ResizeHandleStyled direction="se" />}
+      >
         <div style={boxStyle}>
           <div>
-            <strong>anchor="se"</strong>
-            <br />× ratio kept
+            <strong>lockRatio=false</strong>
+            <br />
+            free resize
           </div>
         </div>
       </StyledItem>
       <StyledItem
-        id="center"
-        x={330}
+        id="locked"
+        x={320}
         y={150}
-        width={160}
-        height={110}
-        features={<ScaleHandleStyled anchor="center" />}
+        width={180}
+        height={120}
+        features={<ResizeHandleStyled direction="se" lockRatio />}
       >
         <div style={{ ...boxStyle, background: '#eef2ea' }}>
           <div>
-            <strong>anchor="center"</strong>
+            <strong>lockRatio=true</strong>
             <br />
-            center stays fixed
+            3:2 always
           </div>
         </div>
       </StyledItem>
@@ -206,34 +213,33 @@ function ScaleDemo() {
   );
 }
 
-export const Scale: StoryObj<typeof moveMeta> = {
-  render: () => <ScaleDemo />,
+export const ResizeLocked: StoryObj<typeof moveMeta> = {
+  render: () => <ResizeLockedDemo />,
   parameters: {
     docs: {
       description: {
         story:
-          'ScaleHandle scales proportionally (newH = newW × h/w). The default anchor is ne (top-right, the reserved scale position); anchor="se" keeps the top-left corner fixed, anchor="center" keeps the item center fixed. All corners (nw/ne/sw/se) are supported. Growth is clamped to the canvas edges.',
+          'ResizeHandle accepts `lockRatio`: with it on, corner handles scale proportionally from the opposite corner (the old ScaleHandle behavior) and edge handles scale the perpendicular axis around the item center — so the aspect ratio never changes. With it off, resize is free. The locked handle shows a link glyph in the styled kit.',
       },
     },
   },
   play: async () => {
     const handle = await getHandle();
-    const se = handle.getItems().find((i) => i.id === 'se')!;
-    const ratio = se.height! / se.width!;
-    // se handle at (270, 210) — drag +60.
-    dragTo({ x: 270, y: 210 }, { x: 330, y: 210 });
-    const seAfter = handle.getItems().find((i) => i.id === 'se')!;
-    expect(seAfter.width).toBe(240);
-    expect(seAfter.height).toBeCloseTo(240 * ratio, 5);
+    const free = handle.getItems().find((i) => i.id === 'free')!;
+    const locked = handle.getItems().find((i) => i.id === 'locked')!;
+    const lockedRatio = locked.height! / locked.width!;
 
-    const center = handle.getItems().find((i) => i.id === 'center')!;
-    const cx = center.x + center.width! / 2;
-    const cy = center.y + center.height! / 2;
-    // center handle at (410, 205) — drag +50.
-    dragTo({ x: 410, y: 205 }, { x: 460, y: 205 });
-    const centerAfter = handle.getItems().find((i) => i.id === 'center')!;
-    expect(centerAfter.x + centerAfter.width! / 2).toBeCloseTo(cx, 5);
-    expect(centerAfter.y + centerAfter.height! / 2).toBeCloseTo(cy, 5);
+    // Free resize: se handle at (270, 210) — drag +60/+40.
+    dragTo({ x: 270, y: 210 }, { x: 330, y: 250 });
+    const freeAfter = handle.getItems().find((i) => i.id === 'free')!;
+    expect(freeAfter.width).toBe(free.width! + 60);
+    expect(freeAfter.height).toBe(free.height! + 40);
+
+    // Locked resize: se handle at (500, 270) — drag +60.
+    dragTo({ x: 500, y: 270 }, { x: 560, y: 270 });
+    const lockedAfter = handle.getItems().find((i) => i.id === 'locked')!;
+    expect(lockedAfter.width).toBe(locked.width! + 60);
+    expect(lockedAfter.height).toBeCloseTo(lockedAfter.width! * lockedRatio, 5);
   },
 };
 
@@ -281,7 +287,7 @@ export const Rotate: StoryObj<typeof moveMeta> = {
     docs: {
       description: {
         story:
-          'RotateHandle sits `offset` px above the item top-center (in the styled kit, on a stem). Dragging in a circle around the item center rotates it; rotation is normalized to [0, 360).',
+          'RotateHandle sits `offset` px above the item top-center (in the styled kit, on a stem). Dragging in a circle around the item center rotates it; rotation is normalized to [0, 360). RotateValue shows the live angle while dragging.',
       },
     },
   },
@@ -292,5 +298,87 @@ export const Rotate: StoryObj<typeof moveMeta> = {
     dragTo({ x: 250, y: 86 }, { x: 350, y: 170 });
     const after = handle.getItems().find((i) => i.id === 'r24')!;
     expect(after.rotation).toBe(90);
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Measure (readouts)                                                  */
+/* ------------------------------------------------------------------ */
+
+function MeasureDemo() {
+  const ref = useCanvasHandle();
+  return (
+    <StyledCanvas ref={ref} width={560} height={380} aria-label="Measure canvas">
+      <StyledItem id="m" x={140} y={90} width={220} height={130} features={styledFeatures}>
+        <div style={boxStyle}>
+          <div>
+            <strong>Drag me</strong>
+            <br />
+            edge lines while moving · size while resizing · angle while rotating
+          </div>
+        </div>
+      </StyledItem>
+      <StyledItem id="n" x={360} y={270} width={140} height={70} features={<MoveHandleStyled />}>
+        <div style={{ ...boxStyle, background: '#eef2ea' }}>neighbor</div>
+      </StyledItem>
+    </StyledCanvas>
+  );
+}
+
+export const Measure: StoryObj<typeof moveMeta> = {
+  render: () => <MeasureDemo />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The three readout features, all headless: EdgeLines draws a measurement line from each item edge toward the nearest target (another item or the canvas edge) with the pixel distance in the middle while moving; ResizeValue shows live width × height while resizing; RotateValue shows the live angle while rotating. Appearance (line color/width, number pills) comes entirely from the styled kit CSS.',
+      },
+    },
+  },
+  play: async () => {
+    const handle = await getHandle();
+    const root = document.querySelector('[data-canvas]') as HTMLElement;
+    const rect = root.getBoundingClientRect();
+    const pt = (x: number, y: number) => ({ clientX: rect.left + x, clientY: rect.top + y });
+
+    // Move: pointer down on the item body (move handle covers it), then move —
+    // the edge-lines readout must appear mid-drag with 4 measurements.
+    fireEvent.pointerDown(root, { ...pt(200, 140), pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { ...pt(230, 170), pointerId: 1, buttons: 1 });
+    await flush();
+    const lines = document.querySelector('[data-feature="edge-lines"]');
+    expect(lines).toBeTruthy();
+    const values = [...document.querySelectorAll('[data-edge-value]')].map((el) => el.textContent);
+    expect(values.length).toBe(4);
+    fireEvent.pointerUp(root, { ...pt(230, 170), pointerId: 1, buttons: 1 });
+    await flush();
+    expect(document.querySelector('[data-feature="edge-lines"]')).toBeNull();
+
+    // Resize: item is now at (170, 120) 220×130 → se handle at (390, 250).
+    // Drag +40/+30 → 260×160; the resize-value readout shows it mid-drag.
+    fireEvent.pointerDown(root, { ...pt(390, 250), pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { ...pt(430, 280), pointerId: 1, buttons: 1 });
+    await flush();
+    const size = document.querySelector('[data-feature="resize-value"]');
+    expect(size).toBeTruthy();
+    expect(size?.textContent).toBe('260 × 160');
+    fireEvent.pointerUp(root, { ...pt(430, 280), pointerId: 1, buttons: 1 });
+    await flush();
+    expect(document.querySelector('[data-feature="resize-value"]')).toBeNull();
+
+    // Rotate: item at (170, 120) 260×160 → center (300, 200), handle at (300, 90).
+    // Start angle -90°; drag straight right of center → 0° → delta +90°.
+    fireEvent.pointerDown(root, { ...pt(300, 90), pointerId: 1, buttons: 1 });
+    fireEvent.pointerMove(root, { ...pt(350, 200), pointerId: 1, buttons: 1 });
+    await flush();
+    const rot = document.querySelector('[data-feature="rotate-value"]');
+    expect(rot).toBeTruthy();
+    expect(rot?.textContent).toBe('90°');
+    fireEvent.pointerUp(root, { ...pt(350, 200), pointerId: 1, buttons: 1 });
+
+    const items = handle.getItems();
+    expect(items.find((i) => i.id === 'm')!.width).toBe(260);
+    expect(items.find((i) => i.id === 'm')!.height).toBe(160);
+    expect(items.find((i) => i.id === 'm')!.rotation).toBe(90);
   },
 };

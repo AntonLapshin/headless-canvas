@@ -8,8 +8,8 @@
 /** Cardinal + intercardinal directions, used by `ResizeHandle`. */
 export type Direction = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
-/** The four built-in drag behaviors. Custom features may use any string. */
-export type DragKind = 'move' | 'resize' | 'scale' | 'rotate';
+/** The built-in drag behaviors. Custom features may use any string. */
+export type DragKind = 'move' | 'resize' | 'rotate';
 
 /**
  * Which corner the `ScaleHandle` sits on (the opposite corner stays fixed
@@ -73,6 +73,16 @@ export interface CanvasHandle {
   sendToBack(id: string): void;
 }
 
+/** The in-progress drag, exposed so features can show contextual readouts. */
+export interface ActiveDrag {
+  /** The item being dragged. */
+  itemId: string;
+  /** Drag kind ('move' | 'resize' | 'rotate' or a custom kind). */
+  kind: DragKind | string;
+  /** Direction of the active resize handle (only for resize drags). */
+  direction?: Direction;
+}
+
 /** Public value of the canvas context (see `useCanvas`). */
 export interface CanvasContextValue {
   /** Logical size of the design space. */
@@ -84,6 +94,8 @@ export interface CanvasContextValue {
   selectedId: string | null;
   /** Item id under the pointer (no buttons pressed), or `null`. */
   hoveredId: string | null;
+  /** The drag currently in progress, or `null`. Readouts subscribe to this. */
+  activeDrag: ActiveDrag | null;
   /** Select an item, or `null` to deselect. */
   select(id: string | null): void;
   /** Read an item's current geometry from the store. */
@@ -142,10 +154,12 @@ export interface ItemProps {
   /** Degrees around the center. Initial value. */
   rotation?: number;
   zIndex?: number;
+  /** Blocks move/resize/rotate; selection + keyboard focus stay active. */
   locked?: boolean;
   /**
    * Declarative affordances: `<MoveHandle />`, `<ResizeHandle />`,
-   * `<ScaleHandle />`, `<RotateHandle />` — or your own feature components.
+   * `<RotateHandle />`, `<EdgeLines />`, `<RotateValue />`,
+   * `<ResizeValue />` — or your own feature components.
    */
   features?: React.ReactNode;
   /** Consumer styling hook. */
@@ -162,18 +176,14 @@ export interface MoveHandleProps {
 export interface ResizeHandleProps {
   /** Which edge/corner this handle resizes. Default `'se'`. */
   direction?: Direction;
-  /** Cursor override; defaults to the per-direction resize cursor. */
-  cursor?: string;
-}
-
-export interface ScaleHandleProps {
   /**
-   * The corner the handle sits on; the opposite corner stays fixed during the
-   * drag. Default `'ne'` (top-right) — the reserved scale position, so it
-   * never collides with the move (top-left) or resize (bottom-right) handles.
+   * Preserve the item's aspect ratio while resizing. Corner handles scale
+   * proportionally from the opposite corner (the old `ScaleHandle` behavior);
+   * edge handles scale the perpendicular axis proportionally around the item
+   * center. Default `false` (free resize).
    */
-  anchor?: ScaleAnchor;
-  /** Cursor override. Defaults to the per-anchor diagonal resize cursor. */
+  lockRatio?: boolean;
+  /** Cursor override; defaults to the per-direction resize cursor. */
   cursor?: string;
 }
 

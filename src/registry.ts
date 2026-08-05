@@ -7,7 +7,7 @@
 
 import { useEffect, useId, useRef } from 'react';
 import { useInternalCanvas } from './context';
-import type { Direction, DragKind, ItemGeometry, Rect, ScaleAnchor } from './types';
+import type { Direction, DragKind, ItemGeometry, Rect } from './types';
 
 /** Context passed to a custom feature's `onDrag`. */
 export interface DragContext {
@@ -35,11 +35,12 @@ export interface DragContext {
 /** Custom drag handler: return a geometry patch (or nothing). */
 export type DragHandler = (ctx: DragContext) => Partial<ItemGeometry> | void;
 
-/** Built-in feature parameters (direction/anchor/offset for the handles). */
+/** Built-in feature parameters (direction/offset/lockRatio for the handles). */
 export interface FeatureParams {
   direction?: Direction;
-  anchor?: ScaleAnchor;
   offset?: number;
+  /** Preserve aspect ratio while resizing (ResizeHandle). */
+  lockRatio?: boolean;
 }
 
 export interface FeatureEntry {

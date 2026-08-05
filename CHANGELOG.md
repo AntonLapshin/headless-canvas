@@ -6,20 +6,22 @@ All notable changes to **headless-canvas** are documented here. The format follo
 
 ### Added
 
-- **Canvas bounds are now the default constraints** — items can never leave the canvas: moving, resizing, scaling and keyboard moves all clamp to `[0, width] × [0, height]` even without a `constraints` prop. An explicit `constraints` prop overrides individual edges (`{ maxX: 700 }` extends the right bound) while the rest stay pinned to the canvas.
-- **`ScaleHandle` all-corner anchors** — `ScaleAnchor` is now `'nw' | 'ne' | 'sw' | 'se' | 'center'`; the corner opposite the anchor stays fixed (e.g. `'ne'` keeps the bottom-left fixed). Scaling is clamped to the canvas bounds, respecting the fixed corner.
-- **`ScaleHandle` default anchor is now `'ne'` (top-right)** — reserved positions: move top-left, resize bottom-right, scale top-right, so the three handles never collide.
-- **Default styled kit for the stories** (`stories/styled.tsx`) — a reference consumer-side styled set used by every story: heroicons glyphs (inlined, zero deps), handles at the reserved corners, selection/hover/focus rings, light & dark themes, and handles that fade in when their item is hovered or selected. The library itself still ships zero visual styles.
+- **Handle support readouts** — three new headless features, rendered only while their drag is active:
+  - **`EdgeLines`** — while an item is moved, a tiny measurement line runs from each edge toward the nearest target edge (another item or the canvas edge), with the pixel distance in the middle of each line (Figma-style). Pure math in `measureEdges(item, others, bounds)`; line color/width and number appearance are consumer CSS (`--hc-edge-thickness`, `data-edge-line`, `data-edge-value`).
+  - **`RotateValue`** — shows the live angle (e.g. `45°`) while the item is rotated.
+  - **`ResizeValue`** — shows live `width × height` while the item is resized.
+  - The canvas context now exposes `activeDrag: { itemId, kind, direction? } | null` (`useCanvas().activeDrag`) so readouts — and custom features — can react to drags.
+- **`ResizeHandle lockRatio`** — when `lockRatio` is set, resizing preserves the item's aspect ratio: corner handles scale proportionally from the opposite corner, edge handles scale the perpendicular axis around the item center. `resizeGeometry` accepts `lockRatio` in `DragOptions`.
+- **Default styled kit readout styles** — red measurement lines + dark number pills (Figma-like), `ResizeHandleStyled` gains a `lockRatio` prop (link glyph), and a **Measure** story showcases all three readouts with interaction play-tests.
 
 ### Changed
 
-- `resizeGeometry` / `scaleGeometry` / `moveGeometry` receive the effective canvas bounds from `<Canvas>` (pure functions unchanged in signature).
-- Stories: `Keyboard`, `Controlled mode` and `Disabled` got explicit `render:` (CSF3 uses the file's default meta otherwise — they previously rendered the wrong demo; their play tests could not pass in the browser).
-- Story play tests that assert `data-*` attributes now `await flush()` after pointer events (React batches continuous-event state updates).
+- **`ScaleHandle` removed** — proportional scaling is now `ResizeHandle` with `lockRatio` (one affordance, two modes). `scaleGeometry` remains as exported pure math (and is what corner `lockRatio` delegates to); `DragKind` is now `'move' | 'resize' | 'rotate'`.
+- The styled kit's reserved positions are now move (top-left), resize (bottom-right), rotate (above top-center) — no scale corner.
 
 ### Fixed
 
-- Styled handles previously rendered at the item's static flow position ("left middle") while their geometric hit regions sat at the corners — the visible handle and the interactive region diverged, so the handles felt dead. The styled kit positions visuals and anchors at the same reserved corners.
+- (none)
 
 ## [0.2.0] — 2026-08-02
 
